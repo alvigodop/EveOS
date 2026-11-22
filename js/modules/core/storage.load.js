@@ -1,6 +1,9 @@
 function finishCoreDataLoad(ok) {
     window.__eveCoreDataLoaded = !!ok;
     window.__eveCoreDataLoading = false;
+    if (ok && window.EveWorkspaceMetadataGuard?.capture) {
+        window.EveWorkspaceMetadataGuard.capture(config, 'core-data-loaded');
+    }
     if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
         window.dispatchEvent(new CustomEvent('eve:core-data-loaded', {
             detail: {

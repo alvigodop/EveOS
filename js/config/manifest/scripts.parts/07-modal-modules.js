@@ -10,7 +10,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/templates/tpl-bulk.js?v=97345b20a002",
     "js/modules/modals/templates/tpl-emoji.js?v=772c72038d40",
     "js/modules/modals/templates/tpl-folder-actions.js?v=92b2983a2315",
-    "js/modules/modals/templates/tpl-category-settings.js?v=6f833e114944",
+    "js/modules/modals/templates/tpl-category-settings.js?v=efcf349a2cea",
     "js/modules/modals/templates/tpl-bookmark-focus.js?v=88469778e4be",
     "js/modules/modals/modal-core.js?v=853abd6152ba",
     "js/modules/modals/emoji-picker.js?v=6984d0b289de",
@@ -44,5 +44,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-category-settings.actions.js?v=b010acdac221",
     "js/modules/modals/modal-category-settings.helpers.js?v=caedb9511325",
     "js/modules/modals/modal-category-settings.audioflix.js?v=5803122ddb3e",
-    "js/modules/modals/modal-category-settings.js?v=aab917d951ef"
+    "js/modules/modals/modal-category-settings.js?v=4382b8cc3277"
 ]);

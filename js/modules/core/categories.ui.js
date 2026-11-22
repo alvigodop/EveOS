@@ -279,12 +279,13 @@ function showCardLaunchBlockedLinks(urls) {
     document.body.appendChild(panel);
 }
 
-async function launchCategory(catName, workspaceId) {
+async function launchCategory(catName, workspaceId, confirmed = false) {
     const scope = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';
     const seen = new Set();
-    const urls = getCategoryLiveLinks()
-        .filter(link => String(link?.category || 'Unsorted') === String(catName || 'Unsorted')
-            && !link?.done && String(link?.workspace || 'main') === scope)
+    const scopedLinks = window.EveCardLaunchScope?.selectLinks?.(getCategoryLiveLinks(), scope, catName)
+        || getCategoryLiveLinks().filter(link => String(link?.category || 'Unsorted') === String(catName || 'Unsorted')
+            && !link?.done && String(link?.workspace || 'main') === scope);
+    const urls = scopedLinks
         .map(link => getCardLaunchUrl(link.url))
         .filter(url => {
             if (!url) return false;
@@ -296,7 +297,7 @@ async function launchCategory(catName, workspaceId) {
         if (typeof showToast === 'function') showToast('This card has no openable URLs.', 'info');
         return { total: 0, opened: 0, blocked: 0 };
     }
-    if (urls.length > 5 && !(await showConfirm(`Open ${urls.length} tabs?`))) {
+    if (urls.length > 5 && !confirmed && !(await showConfirm(`Open ${urls.length} tabs?`))) {
         return { total: urls.length, opened: 0, blocked: 0, cancelled: true };
     }
 
