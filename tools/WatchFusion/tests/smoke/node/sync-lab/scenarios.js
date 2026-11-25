@@ -164,7 +164,17 @@ export const SCENARIOS = {
   ...ENTRY_SCENARIOS
 };
 
+export function assertUniqueScenarioIds(scenarios = SCENARIOS) {
+  const ids = new Set();
+  for (const name of Object.keys(scenarios)) {
+    const id = name.split(':')[0];
+    if (!/^SYNC-\d+$/.test(id) || ids.has(id)) throw new Error(`Invalid or duplicate synchronization scenario ID: ${id}`);
+    ids.add(id);
+  }
+}
+
 export async function runSyncLabChecks(check) {
+  await check('SYNC-CATALOG:stable unique scenario IDs', () => assertUniqueScenarioIds());
   for (const [name, scenario] of Object.entries(SCENARIOS)) {
     await check(name, async () => {
       const result = await scenario();

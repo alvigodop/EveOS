@@ -8,7 +8,7 @@ function savedModel(release) {
 }
 
 export const ENTRY_SCENARIOS = {
-  async 'SYNC-32:a late TV with verified timing corroborates one host correction'() {
+  async 'SYNC-34:a late TV with verified timing corroborates one host correction'() {
     const lab = await createRoomLab({seed:32, sourceNoiseMs:0});
     try {
       const host = lab.addViewer('host', {...fixedPlayer, seekLatencyMs:90}, {offsetSec:.390,

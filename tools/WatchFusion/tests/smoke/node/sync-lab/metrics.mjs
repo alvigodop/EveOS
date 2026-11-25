@@ -2,12 +2,14 @@
 //   node tests/smoke/node/sync-lab/metrics.mjs > metrics.json
 // For every TV device: p95/max |error| after a 30 s warm-up, plus whole-run
 // seeks, network seeks, buffering interruptions, frozen time and reloads.
-import { SCENARIOS } from './scenarios.js';
+import { SCENARIOS, assertUniqueScenarioIds } from './scenarios.js';
+assertUniqueScenarioIds();
 const out = {};
 for (const [name, fn] of Object.entries(SCENARIOS)) {
   globalThis.__watchFusionSyncLabs = [];
   let ok = null, error = null;
   try { ok = (await fn()).ok; } catch (e) { error = String(e.message || e).slice(0, 160); }
+  if (!ok) process.exitCode = 1;
   const tvs = [];
   for (const lab of globalThis.__watchFusionSyncLabs) {
     for (const device of lab.devices.filter(d => d.name === 'tv')) {

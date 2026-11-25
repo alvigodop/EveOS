@@ -5,7 +5,42 @@
 import {createRoomLab, summarize} from './room-lab.js';
 import {PROFILES} from './fake-youtube.js';
 
+// Trace-inspired acquisition with a stale learned rate gain. These use the real
+// controller/coordinator and virtual decoder, not replayed output or speaker timing.
+async function acquiredRoom(offsetSec, seed, noiseMs, requireReverse) {
+  const lab = await createRoomLab({seed, sourceNoiseMs:noiseMs, fineTrim:true});
+  const saved = () => new Map([['watchfusion.viewerSyncModel.v1', JSON.stringify({rateHonored:false,rateRejections:2,rateGain:.71})]]);
+  try {
+    const host = lab.addViewer('host',PROFILES.laptop,{store:saved()});
+    const tv = lab.addViewer('tv',{...PROFILES.variableTv,quantumMs:0},{offsetSec,store:saved()});
+    const started=lab.clock.now();
+    await lab.run(20000);
+    const before={host:host.player.stats.rateRequests.length,tv:tv.player.stats.rateRequests.length,
+      corrections:tv.diagnostics().arbiter.corrections};
+    await lab.run(180000);
+    const samples=host.samples.map((h,i)=>({at:h.at,gap:Math.abs(h.errorMs-tv.samples[i].errorMs),
+      host:Math.abs(h.errorMs),tv:Math.abs(tv.samples[i].errorMs),playing:h.state===1&&tv.samples[i].state===1}));
+    const late=samples.filter(s=>s.at>=started+20000);
+    const detail={samples:late.length,maxGapMs:Math.max(...late.map(s=>s.gap)),
+      maxHostMs:Math.max(...late.map(s=>s.host)),maxTvMs:Math.max(...late.map(s=>s.tv)),
+      tvRates:tv.player.stats.rateRequests,extraCorrections:tv.diagnostics().arbiter.corrections-before.corrections,
+      tvSeeks:tv.player.stats.seeks,hostSeeks:host.player.stats.seeks};
+    const ok=late.length>=720&&late.every(s=>s.playing&&s.gap<=50&&s.host<=50&&s.tv<=50)&&
+      detail.maxGapMs<=25&&detail.tvRates[0]===1.25&&(!requireReverse||detail.tvRates.includes(.75))&&
+      detail.tvRates.length<=(requireReverse?4:2)&&detail.extraCorrections===0&&
+      host.player.stats.rateRequests.length===before.host&&tv.player.stats.rateRequests.length===before.tv&&
+      [host,tv].every(d=>d.player.stats.seeks===0&&d.player.stats.loads===0&&d.player.getPlaybackRate()===1);
+    return {ok,detail};
+  } finally {lab.close();}
+}
+
 export const MULTISONG_SCENARIOS = {
+  async 'SYNC-35:790ms acquisition preserves near-zero room lock for three minutes'() {
+    return acquiredRoom(.790,42,8,false);
+  },
+  async 'SYNC-36:bounded reverse follow-up converges without disturbing the host'() {
+    return acquiredRoom(.650,42,0,true);
+  },
   async 'SYNC-32:two linked tracks keep a tight lock and bound TV catch-up after a buffered transition'() {
     const lab = await createRoomLab({seed:32, sourceNoiseMs:0, fineTrim:true});
     const saved = () => new Map([['watchfusion.viewerSyncModel.v1', JSON.stringify({rateHonored:false, rateRejections:2})]]);
