@@ -16,6 +16,7 @@ import { runUnifiedMediaProviderSmokes } from './node/unified-media-provider.smo
 import { runSecuritySmokes } from './node/security.smoke.js';
 import { runSourceTabSmokes } from './node/source-tab-wiring.smoke.js';
 import { runMergerIndependenceSmokes } from './node/merger-independence.smoke.js';
+import { runR14zCopyRecoverySmokes } from './node/r14z-copy-recovery.js';
 import { runLanSmoke } from './integration/lan.smoke.js';
 import { runCloudflareSmoke } from './integration/cloudflare.smoke.js';
 import { runYouTubeSmoke } from './integration/youtube-live.smoke.js';
@@ -130,7 +131,8 @@ async function main() {
   const fast = !node && !browser && !integration && !has(args, '--security') || has(args, '--fast', '--smoke');
   const profile = browser ? 'browser' : integration ? 'integration' : node ? 'deep-node' : 'fast';
   const fingerprint = inputFingerprint();
-  const canReuse = has(args, '--reuse-pass') && fast && !node && !browser && !integration && !security && !verbose;
+  const canReuse = process.env.EVEOS_REQUIRE_FRESH_SMOKES !== '1' &&
+    has(args, '--reuse-pass') && fast && !node && !browser && !integration && !security && !verbose;
   const reused = canReuse ? reusableFastPass(fingerprint) : null;
   if (reused) {
     console.log(`WATCHFUSION SMOKE: REUSED PASS ${reused.pass} | FAIL 0 | SKIP ${reused.skip} | TOTAL ${reused.pass + reused.skip}`);
@@ -138,6 +140,7 @@ async function main() {
   }
 
   results.push(...await runMergerIndependenceSmokes());
+  if (fast) results.push(...await runR14zCopyRecoverySmokes());
   if (fast) results.push(...await runFastSmoke());
 
   if (node) {

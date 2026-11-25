@@ -78,9 +78,11 @@ function connectEvents() {
 }
 
 function applyIncomingRoomState(nextState) {
-  const revision = Number(nextState?.revision);
-  const current = Number(state?.revision);
-  if (Number.isFinite(revision) && Number.isFinite(current) && revision < current) return false;
+  if (!nextState || (roomId && nextState.roomId && nextState.roomId !== roomId)) return false;
+  const revision = Number(nextState.revision), current = Number(state?.revision);
+  if (Number.isFinite(revision) && Number.isFinite(current)) {
+    if (revision < current || (revision === current && Number(nextState.serverTime) < Number(state.serverTime))) return false;
+  }
   state = nextState;
   return true;
 }
@@ -104,22 +106,31 @@ function startStatePolling() {
   if (remotePollTimer) return;
   const poll = async () => {
     if (!roomId || !session || remotePollBusy) return;
+    const polledRoom = roomId;
+    const polledMember = session.memberId;
     remotePollBusy = true;
     try {
-      const sentAt = Date.now();
-      const res = await fetch(apiUrl(`/api/rooms/${roomId}/join`), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:currentName(),accountId,memberId:session.memberId,roomCode:roomCode||undefined}),cache:'no-store'});
+      let requestSentAt = Date.now();
+      let res = await fetch(apiUrl(`/api/rooms/${polledRoom}/state`), {headers:{'x-member-id':polledMember},cache:'no-store'});
+      if (roomId !== polledRoom || session?.memberId !== polledMember) return;
+      if (res.status === 401) {
+        requestSentAt = Date.now();
+        res = await fetch(apiUrl(`/api/rooms/${polledRoom}/join`), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:currentName(),accountId,memberId:polledMember,roomCode:roomCode||undefined}),cache:'no-store'});
+      }
       const receivedAt = Date.now();
-      if (res.status === 410) { leaveRoom('Room was deleted.'); return; }
+      if (roomId !== polledRoom || session?.memberId !== polledMember) return;
+      if (res.status === 410 || res.status === 404) { leaveRoom('Room is no longer active.'); return; }
       if (!res.ok) throw new Error('room poll failed');
       const data = await res.json();
-      if (data.state?.serverTime) updateServerClock(data.state.serverTime, sentAt, receivedAt);
+      if (roomId !== polledRoom || session?.memberId !== polledMember) return;
+      if (data.state?.serverTime) updateServerClock(data.state.serverTime, requestSentAt, receivedAt);
       if (data.session?.memberId) { session = data.session; saveRoomSession(session, roomId, roomCode, joinCode); }
       if (data.state) {
         const authorityBefore = playbackAuthorityKey(state);
         if (applyIncomingRoomState(data.state)) { render(); syncPlaybackForAuthorityChange(authorityBefore); }
       }
       setStatus('Connected');
-    } catch { setStatus('Reconnecting…'); }
+    } catch { if (roomId === polledRoom && session?.memberId === polledMember) setStatus('Reconnecting…'); }
     finally { remotePollBusy = false; }
   };
   poll();
@@ -129,9 +140,12 @@ function startStatePolling() {
 let pingTimer = null;
 function pingServerClock() {
   if (!session || !roomId) return;
-  const sentAt = Date.now();
+  const activeRoom = roomId, activeMember = session.memberId, sentAt = Date.now();
   fetch(apiUrl(`/api/rooms/${roomId}/ping`), {method:'POST',headers:{'x-member-id':session.memberId}})
-    .then(async response => { const receivedAt = Date.now(); const data = await response.json().catch(() => ({})); updateServerClock(data.serverTime, sentAt, receivedAt); })
+    .then(async response => {
+      const receivedAt = Date.now(), data = await response.json().catch(() => ({}));
+      if (response.ok && roomId === activeRoom && session?.memberId === activeMember) updateServerClock(data.serverTime, sentAt, receivedAt, data.serverReceivedAt);
+    })
     .catch(() => {});
 }
 function startPing() {
@@ -141,8 +155,8 @@ function startPing() {
 }
 let roomResumePromise = null;
 function syncResumedPlayback() {
-  if (state?.source?.kind === 'media') window.mediaPlayback?.sync?.({ force: true });
-  else syncPlayer({ force: true });
+  if (state?.source?.kind === 'media') window.mediaPlayback?.sync?.();
+  else syncPlayer();
 }
 async function resumeRoomSession() {
   if (!roomId || !session) return false;
@@ -165,8 +179,6 @@ async function resumeRoomSession() {
       connectEvents();
       pingServerClock();
       syncResumedPlayback();
-      const resumedMember=session?.memberId;
-      setTimeout(()=>{if(roomId===activeRoom&&session?.memberId===resumedMember)syncResumedPlayback();},250);
       return true;
     } catch { setStatus('Reconnecting…');return false; }
   })().finally(()=>{roomResumePromise=null;});

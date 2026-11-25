@@ -44,14 +44,16 @@ test('privacy guard rejects private paths and partially staged personal Markdown
     assert.match(result.stderr, /personal home-directory path in public documentation: tools\/Nexus-Browser\/APP-ORIGIN\.md/);
     assert.doesNotMatch(result.stderr, /PrivateFixture/);
 });
-test('pre-push enforces exact lane, origin SHA, clean tree and all guardrails', () => {
+test('pre-push enforces exact lane, origin SHA, clean tree and scoped structural checks', () => {
     const hook = read('tools/hooks/pre-push');
     for (const marker of ['origin', 'refs/heads/eve/nexus-machine-spaces',
         'refs/remotes/origin/eve/nexus-machine-spaces', 'merge-base --is-ancestor',
-        'status --porcelain=v1', 'test:guardrails', 'EVEOS_PUBLICATION_GUARD_OK']) {
+        'status --porcelain=v1', 'eveos_publication_scope.py', 'EVEOS_PUBLICATION_GUARD_OK']) {
         assert.ok(hook.includes(marker), 'Missing publication protection: ' + marker);
     }
     assert.match(hook, /\[ "\$seen" -ne 1 \]/);
+    assert.match(hook, /base_oid=\$remote_oid/);
+    assert.match(hook, /eveos_publication_scope\.py --base "\$base_oid"/);
     assert.match(hook, /exit 1/);
 });
 test('pre-push retains the candidate SHA after reading stdin to EOF', () => {
@@ -60,11 +62,13 @@ test('pre-push retains the candidate SHA after reading stdin to EOF', () => {
     assert.match(hook, /\[ "\$local_oid" != "\$candidate_oid" \]/);
     assert.match(hook, /\[ "\$\(git rev-parse HEAD\)" != "\$candidate_oid" \]/);
     assert.doesNotMatch(hook, /\[ "\$\(git rev-parse HEAD\)" != "\$local_oid" \]/);
+    assert.match(hook, /EVEOS_PUBLICATION_GUARD_OK \$candidate_oid/);
 });
 test('structural suite always includes publication-contract regressions', () => {
     const scripts = JSON.parse(read('package.json')).scripts;
     assert.equal(scripts['test:publication-hooks'], 'node --test tests/publication_hooks.test.js');
-    assert.ok(scripts['test:guardrails'].startsWith('npm run --silent test:publication-hooks && '));
+    assert.ok(scripts['test:guardrails'].startsWith('npm run --silent test:guardrails:shared && '));
+    assert.ok(scripts['test:guardrails:shared'].startsWith('npm run --silent test:publication-hooks && '));
     assert.equal(scripts['hooks:install'], 'git config --local core.hooksPath tools/hooks');
 });
 

@@ -9,6 +9,7 @@ This index is the stable, public navigation layer for EveOS source, contributors
 - [Repository layout](REPOSITORY-LAYOUT.md) — what belongs in Git versus local runtime storage.
 - [Shared agent rules](agents/AGENTS.md) — required for **all** contributors, regardless of harness.
 - [Cleanup and execution reliability](agents/CLEANUP-RELIABILITY.md) and [Playwright qualification](agents/EVEOS-PLAYWRIGHT-QUALIFICATION.md).
+- [Scoped test selection and pass reuse](EVEOS-QUALIFICATION-ENGINE-V3.md#scoped-development).
 - [Fresh clone](FRESH_CLONE.md), [fresh installation](FRESH-INSTALL.md), and [qualification](SEARCH-MONITOR-RUNTIME-QUALIFICATION.md).
 - [Nexus Browser integration](NEXUS-BROWSER-INTEGRATION.md), [TLO / Local MoE integration](LOCAL-MOE-TLO-INTEGRATION.md), and [WatchFusion integration](WATCHFUSION-INTEGRATION.md).
 

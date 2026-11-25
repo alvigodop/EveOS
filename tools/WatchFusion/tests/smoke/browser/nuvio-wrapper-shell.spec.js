@@ -150,6 +150,10 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
 
 
   test('Dynamic switching: Nuvio -> Find Media drawer -> YouTube -> switch back to Nuvio', async ({ page }) => {
+    await page.route('**/nuvio/dist/index.html**', route => route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>Nuvio test frame</title><input id="fixtureState" aria-label="Frame state">'
+    }));
     await page.goto('/');
     await expect(page.locator('#app')).toBeVisible();
 
@@ -158,6 +162,8 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
     await expect(page.locator('#sourceModeLabel')).toHaveText('Nuvio');
     await expect(page.locator('#nuvioFrame')).toBeVisible();
     await expect(page.locator('#mediaStage')).toBeVisible();
+    const frameState = page.frameLocator('#nuvioFrame').locator('#fixtureState');
+    await frameState.fill('active draft');
 
     // 2. Open Find Media drawer while on Nuvio - Nuvio stays visible on stage while typing
     await page.click('#resolveTabBtn');
@@ -167,6 +173,7 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
     // 3. Successful YouTube loading closes Find Media without disturbing the mounted
     // Nuvio document; source tabs still let the user reopen the drawer.
     await page.fill('#sourceInput', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    await expect(page.locator('#sourceInput')).toHaveValue('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     await page.click('#loadBtn');
     await expect(page.locator('#sourceModeLabel')).toHaveText('YouTube');
     await expect(page.locator('#findMediaPanel')).toBeHidden();
@@ -182,6 +189,7 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
     await expect(page.locator('#nuvioFrame')).toBeVisible();
     await expect(page.locator('#nuvioToolbar')).toBeVisible();
     await expect(page.locator('#mediaStage')).toBeVisible();
+    await expect(frameState).toHaveValue('active draft');
 
     // Find Media remains usable after the YouTube/Nuvio transition.
     await page.click('#resolveTabBtn');
@@ -223,18 +231,16 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
 
     const nuvioFrameElement = await page.waitForSelector('#nuvioFrame');
     const nuvioFrame = await nuvioFrameElement.contentFrame();
+    // A visible iframe is not proof its new document has completed Nuvio initialization.
+    // Wait for actual automatic shield installation across navigations; never inject
+    // the guard from the test, fabricate readiness, or skip the click assertions.
+    await nuvioFrame.waitForFunction(
+      () => document.__watchfusionSidebarShieldInstalled === true,
+      undefined, { timeout: 10000 }
+    );
 
     const result = await nuvioFrame.evaluate(async () => {
       const doc = document;
-      await new Promise(resolve => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-          if (doc.__watchfusionSidebarShieldInstalled || attempts++ > 40) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 50);
-      });
       let clickedAction = null;
       let backgroundCardActivated = false;
 

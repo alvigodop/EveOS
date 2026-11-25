@@ -236,6 +236,9 @@ function queueConfigWrite(signature, capturedConfig, write, getCapturedConfig) {
         if (accepted) {
             _lastConfigSignature = signature;
             _lastConfigSnapshot = getCapturedConfig ? getCapturedConfig() : capturedConfig;
+            if (window.EveWorkspaceMetadataGuard?.capture && _lastConfigSnapshot) {
+                window.EveWorkspaceMetadataGuard.capture(_lastConfigSnapshot, 'config-save');
+            }
         }
         if (_pendingConfigSave === pending) _pendingConfigSave = null;
         resolveSave(accepted);

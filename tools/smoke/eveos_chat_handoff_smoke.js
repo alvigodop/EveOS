@@ -39,4 +39,21 @@ assert(aiControl.status === 0, `ai-control handoff plan failed: ${aiOutput || ai
 assert(aiOutput.includes('PROFILE ai-control'), 'ai-control profile marker missing');
 assert(aiOutput.includes('RUN test:ai-control'), 'ai-control handoff did not resolve to the focused test profile');
 
+for (const [args, profile, command] of [
+  [['--base', 'HEAD'], 'affected', 'qualify:affected:timed'],
+  [['--final'], 'none', 'verify']
+]) {
+  const preview = spawnSync(process.execPath, [RUNNER, '--plan', ...args], {
+    cwd: ROOT, encoding: 'utf8', windowsHide: true, timeout: 30_000
+  });
+  assert(preview.status === 0, preview.stderr || preview.error?.message || 'handoff preview failed');
+  const lines = preview.stdout.split(/\r?\n/);
+  assert(lines.includes(`PROFILE ${profile}`) && lines.includes(`RUN ${command}`),
+    'the default handoff must be scoped and a release must run verify once');
+  if (profile === 'affected') {
+    assert(lines.some(line => line.startsWith('AFFECTED ')), 'affected handoff preview lost its selected gates');
+    assert(lines.some(line => /^BASE [0-9a-f]{40}$/i.test(line)), 'affected handoff preview lost its exact base SHA');
+  }
+}
+
 console.log('EVEOS_CHAT_HANDOFF_SMOKE_OK');

@@ -5,7 +5,7 @@
   const DEFAULT_HEIGHT = 300;
   const DEFAULT_COMPACT_HEIGHT = 360;
   const DEFAULT_WIDTH = 320;
-  const MIN_HEIGHT = 160;
+  const PEEK_HEIGHT = 80, PEEK_THRESHOLD = 125, MIN_EXPANDED_HEIGHT = 145;
   const MAX_HEIGHT = 720;
   const MIN_WIDTH = 260;
   const MAX_WIDTH = 480;
@@ -33,7 +33,7 @@
     const key = nextMode === 'side' ? WIDTH_KEY : HEIGHT_KEY;
     const compact = nextMode === 'bottom' && grid.getBoundingClientRect().width <= 650;
     const fallback = nextMode === 'side' ? DEFAULT_WIDTH : (compact ? DEFAULT_COMPACT_HEIGHT : DEFAULT_HEIGHT);
-    const stored = Number(storage.get(key));
+    const stored = Number(storage.get(key, fallback));
     return Number.isFinite(stored) ? stored : fallback;
   }
 
@@ -50,8 +50,8 @@
     }
     const minMain = rect.width <= 650 ? COMPACT_MAIN_HEIGHT : MIN_MAIN_HEIGHT;
     return {
-      min: MIN_HEIGHT,
-      max: Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, rect.height - minMain - splitterSize))
+      min: PEEK_HEIGHT,
+      max: Math.max(PEEK_HEIGHT, Math.min(MAX_HEIGHT, rect.height - minMain - splitterSize))
     };
   }
 
@@ -60,13 +60,19 @@
     const { min, max } = limits(nextMode);
     const compact = nextMode === 'bottom' && grid.getBoundingClientRect().width <= 650;
     const fallback = nextMode === 'side' ? DEFAULT_WIDTH : (compact ? DEFAULT_COMPACT_HEIGHT : DEFAULT_HEIGHT);
-    const next = Math.round(Math.max(min, Math.min(max, Number(value) || fallback)));
+    let next = Math.round(Math.max(min, Math.min(max, Number(value) || fallback)));
+    const bottom = nextMode === 'bottom';
+    const peek = bottom && (next <= PEEK_THRESHOLD || max < MIN_EXPANDED_HEIGHT);
+    if (bottom) next = peek ? PEEK_HEIGHT : Math.max(MIN_EXPANDED_HEIGHT, next);
+    document.documentElement.classList.toggle('watchfusion-party-peek', peek);
+    document.documentElement.classList.toggle('watchfusion-party-shallow', bottom && !peek && next < 185);
     const key = nextMode === 'side' ? WIDTH_KEY : HEIGHT_KEY;
     const variable = nextMode === 'side' ? '--watchfusion-party-width' : '--watchfusion-party-height';
     grid.style.setProperty(variable, `${next}px`);
     splitter.setAttribute('aria-valuemin', String(min));
     splitter.setAttribute('aria-valuemax', String(max));
     splitter.setAttribute('aria-valuenow', String(next));
+    splitter.setAttribute('aria-valuetext', peek ? 'Watch Party compact: members only' : `${next} pixels`);
     splitter.title = nextMode === 'side'
       ? `Drag left/right to resize Watch Party · ${next}px · double-click to reset`
       : `Drag up/down to resize Watch Party · ${next}px · double-click to reset`;
@@ -138,7 +144,7 @@
     const delta = mode === 'side'
       ? (event.key === 'ArrowLeft' ? 20 : -20)
       : (event.key === 'ArrowUp' ? 20 : -20);
-    apply(current + delta);
+    apply(mode === 'bottom' && current <= PEEK_THRESHOLD && delta > 0 ? MIN_EXPANDED_HEIGHT : current + delta);
   });
 
   const observer = typeof ResizeObserver === 'function'

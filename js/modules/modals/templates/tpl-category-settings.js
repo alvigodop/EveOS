@@ -54,12 +54,18 @@ window.modalTemplate += `
                         <button onclick="closeModals(); if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(String(window.ctxWsId || window.eveState?.config?.activeWorkspace || 'main'), window.currentCategoryCtx)" style="flex:1 1 180px;">&#127756; Constellation Map</button>
                         <button onclick="switchCategoryTab('folders')" style="flex:1 1 180px;">&#128450; Manage Bookmark Folders</button>
                         <button onclick="closeModals(); ctxCatFocus()" style="flex:1 1 180px;">&#127919; Focus Mode</button>
-                        <button onclick="closeModals(); launchCategory(window.currentCategoryCtx)" style="flex:1 1 180px;">&#128640; Launch</button>
+                        <button onclick="closeModals(); launchCategory(window.currentCategoryCtx, window.ctxWsId)" style="flex:1 1 180px;">&#128640; Launch</button>
                         <div id="categoryPinCardScopeWrap" style="display:none; flex:1 1 100%; flex-direction:column; gap:6px; margin-top:4px;">
                             <label for="categoryPinCardScopeSelect" style="font-size:0.78rem; opacity:0.78;">Card Pin Visibility</label>
                             <select id="categoryPinCardScopeSelect" onchange="saveCategoryCardPinScope(this.value)"></select>
                             <div id="categoryPinCardScopeHint" style="font-size:0.76rem; opacity:0.68;"></div>
                         </div>
+                    </div>
+                </details>
+                <details id="categoryLaunchStateDisclosure" class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">&#128640; Launch State</summary>
+                    <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:10px;">
+                        <div id="categoryLaunchStateMount" style="min-height:36px;">Launch rules are loading...</div>
                     </div>
                 </details>
                 <details id="categoryAudioflixSection" class="settings-disclosure">
@@ -131,7 +137,7 @@ window.modalTemplate += `
 
         <div id="cat-tab-state" class="tab-content" style="display:none;">
             <div style="display:flex; flex-direction:column; gap:12px;">
-                <p style="opacity:0.75; font-size:0.9rem; margin:0;">Open the stratified Datapack View State for this card. Bookmark internals open separately so huge cards do not dump every bookmark inline.</p>
+                <p style="opacity:0.75; font-size:0.9rem; margin:0;">Inspect this card's Structured Datapack View State and its bookmark/folder internals. This is a data inspection gateway; it does not control the Launch button or change Launch State.</p>
                 <button type="button" class="btn-primary" onclick="openCategoryStateGateway()">Open Structured State Gateway</button>
                 <button type="button" onclick="openCategoryStateInternals()">Open Bookmark/Folder Internals</button>
                 <div id="categoryStateGatewayHint" style="font-size:0.78rem; opacity:0.72;"></div>

@@ -21,7 +21,7 @@ Run the focused contract with:
 npm run --silent smoke:engineering-safeguards-contract
 ```
 
-It is part of `npm run test:guardrails`, which is also run by the tracked local pre-push hook.
+It is part of the shared guardrails used by both `npm run test:guardrails` and the local pre-push hook.
 Successful output is one stable summary line; failures identify the broken invariant. The check
 is intentionally cheap and does not run the full release suite.
 

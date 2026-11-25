@@ -188,8 +188,8 @@
         paused: playerState !== window.YT?.PlayerState?.PLAYING,
         ended: playerState === window.YT?.PlayerState?.ENDED,
         playbackRate: Number(ytPlayer.getPlaybackRate?.()) || 1,
-        volume: Math.max(0, Math.min(100, Number(ytPlayer.getVolume?.()) || 0)),
-        muted: !!ytPlayer.isMuted?.()
+        volume: Number.isFinite(ytPlayer.getVolume?.()) ? ytPlayer.getVolume() : playerAudioPrefs.volume,
+        muted: ytPlayer.isMuted?.() ?? playerAudioPrefs.muted
       };
     } catch {
       return null;

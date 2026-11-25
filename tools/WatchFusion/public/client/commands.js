@@ -1,52 +1,24 @@
-function ensurePlayer(videoId) {
+function ensurePlayer(videoId, recoveryStart = null) {
   if (!videoId) return;
+  const recoveryRoom = Number.isFinite(recoveryStart) ? roomId : null, recoveryEpoch = state?.presentationEpoch;
   const previousPending = pendingVideoId;
   pendingVideoId = videoId;
+  showYouTubePlayer();
+  if (continueLinkedViewerTrack(videoId, previousPending)) return;
   if (previousPending && previousPending !== videoId) {
     playerPrimed = false;
     playerInitializing = false;
     autoplayWasBlocked = false;
   }
-  window.mediaPlayback?.clear?.();
-  const host = $('playerHost') || document.querySelector('.player.panel');
-  if (host) {
-    window.watchFusionYoutubeLayout?.activate?.(host);
-    if (!$('player')) {
-      const p = document.createElement('div');
-      p.id = 'player';
-      host.insertBefore(p, host.firstChild);
-    }
-    const p = $('player');
-    if (p) {
-      p.hidden = false;
-      p.style.display = 'block';
-    }
-    const nuvioFrame = $('nuvioFrame');
-    if (nuvioFrame) {
-      nuvioFrame.hidden = true;
-      nuvioFrame.style.display = 'none';
-    }
-    const nuvioToolbar = $('nuvioToolbar');
-    if (nuvioToolbar) {
-      nuvioToolbar.hidden = true;
-    }
-    const voxelVisionFrame = $('voxelVisionFrame');
-    if (voxelVisionFrame) {
-      voxelVisionFrame.hidden = true;
-      voxelVisionFrame.style.display = 'none';
-    }
-    const voxelVisionToolbar = $('voxelVisionToolbar');
-    if (voxelVisionToolbar) voxelVisionToolbar.hidden = true;
-    host.classList.remove('nuvio-active', 'voxelvision-active');
-  }
   loadYouTubeApi().then(() => {
-    if (!pendingVideoId) return;
+    if (pendingVideoId !== videoId) return;
     if (!ytPlayer) {
       ytPlayerReady = false;
       playerInitializing = true;
       ytPlayer = new YT.Player('player', {
         videoId: pendingVideoId,
         playerVars: {
+          ...(Number.isFinite(recoveryStart) ? {start:Math.max(0, Math.floor(recoveryStart))} : {}),
           autoplay: 1,
           controls: 1,
           rel: 0,
@@ -55,7 +27,8 @@ function ensurePlayer(videoId) {
           origin: window.location.origin
         },
         events: {
-          onReady: async () => {
+          onReady: async event => {
+            if (event?.target && event.target !== ytPlayer) return;
             ytPlayerReady = true;
             window.watchFusionYoutubeLayout?.refresh?.();
             try {
@@ -67,6 +40,18 @@ function ensurePlayer(videoId) {
               }
             } catch {}
             const desired = pendingVideoId;
+            if (recoveryRoom && recoveryRoom === roomId && state?.presentationEpoch === recoveryEpoch &&
+                desired === videoId && state.source?.videoId === videoId && !isHost() && followsRoomPlayback()) {
+              const recovering = ytPlayer;
+              // The constructor already loaded this track at the live position. A
+              // slow video ID on ready must not cue it again from zero.
+              try { await waitForPlayerCued(videoId); } catch { /* normal sync retries a mismatched player */ }
+              if (ytPlayer === recovering && roomId === recoveryRoom && state?.presentationEpoch === recoveryEpoch && state.source?.videoId === videoId) {
+                playerInitializing = false;
+                syncPlayer();
+              }
+              return;
+            }
             if (desired) {
               const current = ytPlayer.getVideoData?.()?.video_id || '';
               if (current !== desired) {
@@ -77,9 +62,7 @@ function ensurePlayer(videoId) {
             }
             if (roomId) {
               await primeYouTubePlayer();
-              // Priming may legitimately finish without autoplay permission.
-              // The player is still initialized at that point, so a later
-              // manual host Play event must be allowed to become room state.
+              // Allow manual host playback after blocked autoplay.
               playerInitializing = false;
               syncHydratedPlayer(desired);
             } else {
@@ -92,7 +75,8 @@ function ensurePlayer(videoId) {
           onStateChange: onYouTubeStateChange,
           onPlaybackRateChange: onYouTubeRateChange,
           onVolumeChange: onYouTubeVolumeChange,
-          onAutoplayBlocked: () => {
+          onAutoplayBlocked: event => {
+            if (event?.target && event.target !== ytPlayer) return; window.WatchFusionRoomAudioUnlock?.autoplayBlocked?.();
             const playingState = window.YT?.PlayerState?.PLAYING ?? 1;
             const alreadyPlaying = ytPlayer?.getPlayerState?.() === playingState;
             if (roomId && !userGesturePrimeUsed && !alreadyPlaying) {
@@ -105,7 +89,6 @@ function ensurePlayer(videoId) {
       });
       return;
     }
-
     if (!ytPlayerReady) return;
     const currentId = ytPlayer.getVideoData?.()?.video_id || '';
     if (currentId !== pendingVideoId) {
@@ -145,7 +128,6 @@ function ensurePlayer(videoId) {
     setStatus(error?.message || 'YouTube player failed to initialize.');
   });
 }
-
 function waitForPlayerCued(videoId, timeoutMs = 2500) {
   const started = performance.now();
   return new Promise((resolve, reject) => {
@@ -163,73 +145,65 @@ function waitForPlayerCued(videoId, timeoutMs = 2500) {
     tick();
   });
 }
-
 function primeYouTubePlayer(force = false) {
   installUserGesturePrime();
   if (!ytPlayer || !ytPlayerReady || primingPlayer) return Promise.resolve();
   if (playerPrimed && !force) return Promise.resolve();
-
-  primingPlayer = true;
+  const player = ytPlayer, video = pendingVideoId, room = roomId, epoch = state?.presentationEpoch;
+  const same = () => ytPlayer === player && pendingVideoId === video && roomId === room && state?.presentationEpoch === epoch;
+  primingPlayer = true; window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
   suppressAudioPersistence = true;
-  const targetPosition = Number(state?.playback?.position) || 0;
   const wasApplyingRemote = applyingRemote;
   applyingRemote = true;
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let sawPlaying = false;
+  return new Promise(resolve => {
+    let settled = false, sawPlaying = false, first = null, watch = null, timeout = null, warm = false;
     const finish = () => {
       if (settled) return;
-      settled = true;
+      settled = true; clearInterval(watch); clearTimeout(timeout);
+      if (!same()) { primingPlayer = false; applyingRemote = wasApplyingRemote; suppressAudioPersistence = false; resolve(); return; }
       try {
-        ytPlayer.pauseVideo?.();
-        ytPlayer.seekTo?.(targetPosition, true);
+        window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
+        // Only warm a paused room, never pause an already-running join to prime it.
+        if (state?.playback?.paused) {
+          player.pauseVideo?.();
+          const target = Number(state.playback.position) || 0;
+          const current = Number(player.getCurrentTime?.());
+          if (!followsRoomPlayback() && (!Number.isFinite(current) || Math.abs(current-target)>.5)) player.seekTo?.(target, true);
+        }
       } catch {}
-      playerPrimed = sawPlaying;
-      if (!sawPlaying) {
-        autoplayWasBlocked = true;
-        installUserGesturePrime();
-      }
+      playerPrimed = warm;
+      if (!warm) { autoplayWasBlocked = true; installUserGesturePrime(); }
       primingPlayer = false;
       if (!applyRoomAudioState()) restorePlayerAudioPrefs();
       applyingRemote = wasApplyingRemote;
       setTimeout(() => { suppressAudioPersistence = false; }, 0);
+      window.watchFusionRoomSyncLog?.note?.('startup-prime-result', {reason:warm?'motion-confirmed':sawPlaying?'decoder-unverified':'play-unconfirmed'});
       resolve();
     };
-
-    const timeout = setTimeout(finish, 2500);
-    const start = () => {
+    const observe = () => {
+      if (!same()) return finish();
       try {
-        const stateNow = ytPlayer.getPlayerState?.();
-        if (stateNow === YT.PlayerState.PLAYING) {
-          sawPlaying = true;
-          clearTimeout(timeout);
-          finish();
-          return;
-        }
-        ytPlayer.mute?.();
-        ytPlayer.playVideo?.();
-        const watch = setInterval(() => {
-          if (ytPlayer?.getPlayerState?.() === YT.PlayerState.PLAYING) {
-            sawPlaying = true;
-            clearInterval(watch);
-            clearTimeout(timeout);
-            finish();
-          }
-        }, 40);
-        setTimeout(() => clearInterval(watch), 2200);
-      } catch {
-        clearTimeout(timeout);
-        finish();
-      }
+        if (player.getPlayerState?.() !== YT.PlayerState.PLAYING) { first = null; return; }
+        sawPlaying = true;
+        const at = performance.now(), pos = Number(player.getCurrentTime?.());
+        if (!Number.isFinite(pos)) { first = null; return; }
+        if (!first) { first = {at,pos}; return; }
+        const elapsed = at-first.at, advance = pos-first.pos;
+        if (elapsed < 200) return;
+        const rate = Number(player.getPlaybackRate?.()) || 1;
+        if (advance >= elapsed/1000*rate*.5 && advance <= elapsed/1000*rate*1.5+.04) {
+          warm = true; finish();
+        } else if (elapsed >= 500 || advance < -.08 || advance > elapsed/1000*rate*1.5+.04) first = {at,pos};
+      } catch { finish(); }
     };
-
-    const stateNow = ytPlayer.getPlayerState?.();
-    if (stateNow === YT.PlayerState.PLAYING || stateNow === YT.PlayerState.PAUSED || stateNow === YT.PlayerState.CUED) start();
-    else setTimeout(start, 50);
+    timeout = setTimeout(finish, state?.playback?.paused ? 4500 : 2500);
+    try {
+      if (state?.playback?.paused) player.mute?.();
+      if (player.getPlayerState?.() !== YT.PlayerState.PLAYING) { player.mute?.(); player.playVideo?.(); }
+      watch = setInterval(observe, 50); observe();
+    } catch { finish(); }
   });
 }
-
 function onYouTubeError(event) {
   const code = Number(event?.data);
   if (code === 2) return setStatus('YouTube rejected the video ID.');
@@ -242,11 +216,9 @@ function onYouTubeError(event) {
   }
   setStatus(`YouTube error ${code || 'unknown'}`);
 }
-
 function hostPlaybackEventAllowed(playerState) {
-  if (!state || primingPlayer || playerInitializing || !isHost()) return false;
+  if (!state || primingPlayer || playerInitializing || followsRoomPlayback()) return false;
   if (!applyingRemote) return true;
-
   // Programmatic playback caused by an authoritative room update should not
   // echo back as a new host command. A contradictory event is different: it
   // represents a user transition and must be accepted even during the short
@@ -255,21 +227,30 @@ function hostPlaybackEventAllowed(playerState) {
   if (playerState === YT.PlayerState.PAUSED) return !state.playback.paused;
   return false;
 }
-
+// Automatic room corrections are local player operations, never commands to the
+// attached source. Keep native iframe controls working outside correction jobs.
+function linkedRoomViewerCorrectionActive(){
+  return !!(roomId && state?.linkedSourceActive === true && followsRoomPlayback() &&
+    (window.watchFusionViewerArbiter?.owns?.() || window.watchFusionHostZeroCenter?.isApplying?.() ||
+     window.WatchFusionZeroConverge?.isApplying?.()));
+}
 function onYouTubeStateChange(event) {
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()){
+  const linked = window.watchFusionLinkedTab;
+  if (linked?.active?.() && (!roomId || isHost())) { // v13.10.7: solo embedded controls drive the source too
     window.watchFusionYoutubeStability?.observe?.(event.data);
-    if(window.watchFusionLinkedTab?.applying?.())return;
-    const position=Number(ytPlayer?.getCurrentTime?.())||0;
-    if(event.data===YT.PlayerState.PLAYING)window.watchFusionLinkedTab.control('play',position);
-    else if(event.data===YT.PlayerState.PAUSED)window.watchFusionLinkedTab.control('pause',position);
-    else if(event.data===YT.PlayerState.BUFFERING&&window.WatchFusionLinkedPlaybackSync?.positionJumped(position,linkedYoutubePositionSample))window.watchFusionLinkedTab.control('seek',position);
-    if(event.data!==YT.PlayerState.BUFFERING)sampleLinkedYoutubePosition();
+    const previewGuard=window.WatchFusionPlaylistContinuity?.guardPreviewEvent?.(event.data,linked.metadata?.(),ytPlayer?.getVideoData?.()?.video_id,state?.source?.videoId);
+    if (linked.applying?.() || linkedRoomViewerCorrectionActive() || primingPlayer || previewGuard) return;
+    const paused = event.data === YT.PlayerState.PAUSED;
+    const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
+    if (paused || event.data === YT.PlayerState.PLAYING) {
+      const matchesSource = linked.metadata?.()?.paused === paused;
+      if (!matchesSource && !linked.pendingControl?.('play') && !linked.pendingControl?.('pause')) linked.control(paused ? 'pause' : 'play', position);
+    } else if (event.data === YT.PlayerState.BUFFERING && window.WatchFusionLinkedPlaybackSync?.positionJumped(position, linkedYoutubePositionSample)) linked.control('seek', position);
+    if (event.data !== YT.PlayerState.BUFFERING) sampleLinkedYoutubePosition(false);
     return;
   }
   if (window.watchFusionYoutubeStability?.observe?.(event.data)) return;
   if (!hostPlaybackEventAllowed(event.data)) return;
-
   const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
   const duration = Number(ytPlayer?.getDuration?.()) || 0;
 
@@ -301,37 +282,46 @@ function onYouTubeStateChange(event) {
     command('pause', { position });
   }
 }
-
 function onYouTubeRateChange() {
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
-  if (!state || applyingRemote || primingPlayer || !isHost()) return;
+  if(linkedRoomViewerCorrectionActive()||window.watchFusionHostZeroCenter?.isApplying?.()||window.WatchFusionZeroConverge?.isApplying?.()||window.WatchFusionSoloLinkSync?.isApplying?.())return;
+  if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
+  if (!state || applyingRemote || primingPlayer || followsRoomPlayback()) return;
   command('rate', { rate: ytPlayer?.getPlaybackRate?.() || 1 });
 }
-function onYouTubeVolumeChange() {
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()&&!window.watchFusionLinkedTab?.applying?.()){
-    window.watchFusionLinkedTab.control('volume',ytPlayer?.isMuted?.()?0:(Number(ytPlayer?.getVolume?.())||0)/100);return;
+function onYouTubeVolumeChange(){
+  if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){
+    // Browser autoplay/preview muting is not an explicit source-volume command.
+    if(ytPlayer?.isMuted?.())return;
+    const observed=Number(ytPlayer?.getVolume?.());if(!Number.isFinite(observed)||observed<=0)return;
+    window.watchFusionLinkedTab.control('volume',observed/100);return;
   }
   observeYouTubeAudio();
 }
 function requestViewerPlayback() {
   if (!ytPlayer || !ytPlayerReady || !state?.playback || state.playback.paused || state.playback.ended) return;
   const playingState = window.YT?.PlayerState?.PLAYING ?? 1;
-  const alreadyPlaying = ytPlayer.getPlayerState?.() === playingState;
+  const bufferingState = window.YT?.PlayerState?.BUFFERING ?? 3;
+  const playerState = ytPlayer.getPlayerState?.();
+  if (playerState === bufferingState) return;
+  const alreadyPlaying = playerState === playingState;
   if (alreadyPlaying) {
     playerPrimed = true;
     playerInitializing = false;
     if (!autoplayWasBlocked || userGesturePrimeUsed) applyRoomAudioState(ytPlayer, userGesturePrimeUsed);
     return;
   }
-  const mutedRetry = autoplayWasBlocked && !userGesturePrimeUsed;
+  if (requestViewerPlayback.checkTimer) return;
+  const mutedRetry = autoplayWasBlocked && !userGesturePrimeUsed, requestedVideo = state.source?.videoId;
   try {
+    window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
     if (mutedRetry) ytPlayer.mute?.();
     else if (!applyRoomAudioState(ytPlayer, userGesturePrimeUsed)) restorePlayerAudioPrefs();
     ytPlayer.playVideo?.();
   } catch {}
-  clearTimeout(requestViewerPlayback.checkTimer);
   requestViewerPlayback.checkTimer = setTimeout(() => {
-    if (!ytPlayer || state?.playback?.paused || state?.playback?.ended) return;
+    requestViewerPlayback.checkTimer = null;
+    if (!ytPlayer || state?.source?.videoId !== requestedVideo || state?.playback?.paused || state?.playback?.ended) return;
+    if (ytPlayer.getPlayerState?.() === bufferingState) return;
     if (ytPlayer.getPlayerState?.() === playingState) {
       playerPrimed = true;
       playerInitializing = false;
@@ -355,18 +345,17 @@ function requestViewerPlayback() {
 function syncHydratedPlayer(videoId = state?.source?.videoId) {
   const expected = String(videoId || '');
   if (expected && state?.source?.videoId !== expected) return false;
-  const forceViewer = !isHost();
+  const forceViewer = followsRoomPlayback();
   syncPlayer({ hydrateHost: true, force: forceViewer });
   if (forceViewer && expected) {
     setTimeout(() => {
-      if (!roomId || isHost() || !ytPlayerReady || state?.source?.videoId !== expected) return;
+      if (!roomId || !followsRoomPlayback() || !ytPlayerReady || state?.source?.videoId !== expected) return;
       if ((ytPlayer?.getVideoData?.()?.video_id || '') !== expected) return;
-      syncPlayer({ force: true });
+      syncPlayer();
     }, 350);
   }
   return true;
 }
-
 function syncPlayer(options = {}) {
   if (!roomId || !state?.source?.videoId || !ytPlayer || !ytPlayerReady) return;
   const loadedId = ytPlayer.getVideoData?.()?.video_id;
@@ -374,14 +363,13 @@ function syncPlayer(options = {}) {
     ensurePlayer(state.source.videoId);
     return;
   }
-  if (isHost() && options.hydrateHost !== true) return;
-  if (!isHost() && typeof window.applyAdaptiveViewerSync === 'function') {
+  if (!followsRoomPlayback() && options.hydrateHost !== true) return;
+  if (followsRoomPlayback() && typeof window.applyAdaptiveViewerSync === 'function') {
     // Playback lifecycle ownership stays here. Adaptive sync is a focused
     // viewer-correction service and must not replace this function wholesale.
-    window.applyAdaptiveViewerSync(Boolean(options?.force));
+    window.applyAdaptiveViewerSync(Boolean(options.force), false, options.explicitSync === true);
     return;
   }
-
   const target = Number(state.playback.position) || 0;
   applyingRemote = true;
   try {
@@ -401,30 +389,30 @@ function syncPlayer(options = {}) {
   }
 }
 let linkedYoutubePositionSample=null;
-function sampleLinkedYoutubePosition(){
+function sampleLinkedYoutubePosition(forwardSeek = true){
+  if(linkedRoomViewerCorrectionActive()){linkedYoutubePositionSample=null;return;}
   const linked=window.watchFusionLinkedTab;
-  if(!linked?.active?.()||!ytPlayer||!ytPlayerReady||linked.applying?.()||playerInitializing){if(!linked?.active?.())linkedYoutubePositionSample=null;return;}
+  if(!linked?.active?.()||!ytPlayer||!ytPlayerReady||linked.applying?.()||playerInitializing){if(!linked?.active?.()||linked?.applying?.())linkedYoutubePositionSample=null;return;}
   const playerState=ytPlayer.getPlayerState?.();
   if(playerState===YT.PlayerState.BUFFERING)return;
   const position=Number(ytPlayer.getCurrentTime?.())||0,now=performance.now(),rate=Number(ytPlayer.getPlaybackRate?.())||1;
   const jumped=window.WatchFusionLinkedPlaybackSync?.positionJumped?.(position,linkedYoutubePositionSample,now)===true;
-  if(jumped&&isHost())linked.control('seek',position);
+  if(forwardSeek&&jumped&&(!roomId||isHost())&&!window.WatchFusionSoloLinkSync?.isApplying?.())linked.control('seek',position);
   linkedYoutubePositionSample={position,at:now,playing:playerState===YT.PlayerState.PLAYING,rate};
 }
 setInterval(()=>{observeYouTubeAudio();sampleLinkedYoutubePosition();},250);
-
 function followAttachedYouTube(metadata = {}, options = {}) {
   if(!ytPlayer||!ytPlayerReady)return false;
   const current=Number(ytPlayer.getCurrentTime?.())||0,playerState=ytPlayer.getPlayerState?.();
   const plan=window.WatchFusionLinkedPlaybackSync?.youtubePlan(metadata,playerState,current,options);
   if(!plan)return false;
-  const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=Number(metadata.volume);
-  const rateChanged=Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
+  const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=metadata.volume;
+  const rateChanged=!window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.() && !window.WatchFusionSoloLinkSync?.isApplying?.() && Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
   const volumeChanged=Number.isFinite(volume)&&Math.abs((Number(ytPlayer.getVolume?.())||0)-Math.max(0,Math.min(1,volume))*100)>.5;
   if(!plan.seek&&!plan.pause&&!plan.play&&!rateChanged&&!volumeChanged)return true;
   window.watchFusionLinkedTab?.setApplying?.(true);applyingRemote=true;
   try{
-    if(plan.seek){ytPlayer.seekTo?.(plan.target,true);linkedYoutubePositionSample={position:plan.target,at:performance.now(),playing:metadata.paused!==true,rate};}
+    if(plan.seek){window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.seekTo?.(plan.target,true);linkedYoutubePositionSample={position:plan.target,at:performance.now(),playing:metadata.paused!==true,rate};}
     if(rateChanged)ytPlayer.setPlaybackRate?.(rate);
     if(volumeChanged)ytPlayer.setVolume?.(Math.max(0,Math.min(1,volume))*100);
     if(plan.pause)ytPlayer.pauseVideo?.();else if(plan.play)ytPlayer.playVideo?.();

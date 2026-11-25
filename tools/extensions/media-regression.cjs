@@ -25,7 +25,14 @@ async function qualifyMediaWorker() {
       remove: async keys => { for(const key of Array.isArray(keys)?keys:[keys])delete state[key]; }
     } },
     tabs: { query: async () => activeTab ? [activeTab] : [], get:async id => id===activeTab?.id?activeTab:Promise.reject(new Error('missing tab')),
-      update:async(id,value)=>{tabUpdates.push({id,value});activeTab={...activeTab,...value};return activeTab;},
+      update:async(id,value)=>{
+        tabUpdates.push({id,value});
+        // Chrome reports tab-level mute through mutedInfo on a subsequent get.
+        // The old mock changed only `muted`, then falsely denied a verified link.
+        activeTab={...activeTab,...value,
+          ...('muted' in value ? {mutedInfo:{...activeTab.mutedInfo,muted:!!value.muted}} : {})};
+        return activeTab;
+      },
       sendMessage: async (...args) => { sent.push(args); return { ok: true }; },
       onUpdated: { addListener() {} }, onRemoved: { addListener() {} } },
     scripting: { executeScript: async details => {
@@ -41,6 +48,7 @@ async function qualifyMediaWorker() {
   assert.equal((await context.WatchFusionMediaLink.status()).linked, true);
   assert.equal(state.sourceTab, 7);
   assert.equal(tabUpdates[0].value.muted,true,'the linked source tab is browser-muted while attached');
+  assert.equal((await context.chrome.tabs.get(7)).mutedInfo.muted, true, 'Chrome readback confirms mute before pairing');
   const injectedFiles=injected.filter(value=>Array.isArray(value.files));
   assert.equal(injectedFiles[0].world, 'MAIN');
   assert.equal(injectedFiles[0].files[0], 'modules/watchfusion/source-page-adapter.js');
@@ -53,6 +61,7 @@ async function qualifyMediaWorker() {
   assert(published.every(value => !Object.hasOwn(value,'stream')),'state-link metadata must never publish captured pixels');
   await context.WatchFusionMediaLink.stop();
   assert.equal(tabUpdates.at(-1).value.muted,false,'unlink restores the original browser mute state');
+  assert.equal((await context.chrome.tabs.get(7)).mutedInfo.muted, false, 'Chrome readback confirms original mute restored');
   activeTab = null;
   await assert.rejects(context.WatchFusionMediaLink.startCurrentTab(link), /Return to the source tab/);
   assert.equal(state.sourceTab, undefined);

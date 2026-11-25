@@ -1,0 +1,60 @@
+/* v9: preserve dashboard/card dimensions; repair navigation/header composition in narrow EveOS windows. */
+@media (max-width: 760px) {
+  #main-content { min-width: 0; padding: 10px 12px 25px; }
+  #main-content > .top-bar {
+    display: grid !important; grid-template-columns: minmax(0, 1fr);
+    align-content: start; align-items: start; gap: 5px;
+    flex: 0 0 auto; width: 100%; min-height: 0; height: auto !important;
+    overflow: visible; position: relative; z-index: 1;
+    margin: 0 0 10px; padding: 0;
+  }
+  #main-content > .top-bar > div:first-child { min-width: 0; min-height: 30px; margin-left: 0 !important; gap: 6px !important; }
+  #main-content > .top-bar .logo { white-space: nowrap; font-size: 13px; }
+  #main-content > .top-bar .top-right {
+    display: flex !important; align-items: center; align-content: flex-start;
+    flex-wrap: wrap !important; overflow: visible !important;
+    width: 100%; max-width: 100%; min-width: 0;
+    gap: 4px !important; padding: 0; max-height: none !important;
+    scrollbar-width: none;
+  }
+  #main-content > .top-bar .top-right > button { flex: 0 0 auto; min-width: 0; max-width: 100%; padding: 4px 6px; font-size: 11px; line-height: 1.15; }
+  #main-content > .header { flex: 0 0 auto; position: relative !important; z-index: 0; margin-top: 2px !important; padding: 10px 0 !important; min-width: 0; }
+  #main-content > .header #main-display { position: relative; font-size: clamp(24px, 6vw, 38px) !important; line-height: 1.15 !important; margin: 0 auto 4px; max-width: 100%; overflow-wrap: anywhere; }
+  #main-content > .header .search-container { max-width: 100%; min-width: 0; }
+  #main-content > .header .search-wrapper { width: min(100%, 440px); min-width: 0; }
+  #main-content > .header .action-row { max-width: 100%; flex-wrap: wrap; justify-content: center; }
+}
+@media (max-width: 380px) {
+  #main-content > .top-bar .top-right > button { font-size: 10px; padding: 3px 5px; }
+  #main-content > .header #main-display { font-size: 23px !important; }
+}
+/* Search Monitor: keep controls in their own panel at normal browser zoom. */
+@media (max-width: 760px) {
+  .gemini-monitor-shell, .gemini-monitor-workspace-shell,
+  .gemini-monitor-shell-toolbar, .gemini-monitor-toolbar-actions,
+  .gemini-monitor-view-switch { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .gemini-monitor-shell { overflow-x: hidden; overflow-y: auto; }
+  .gemini-monitor-shell-toolbar { display: flex; flex-wrap: wrap; align-items: start; gap: 6px; padding: 7px; }
+  .gemini-monitor-shell-copy { min-width: 0; flex: 1 1 auto; }
+  .gemini-monitor-toolbar-actions { display: flex; flex-wrap: wrap; gap: 5px; flex: 1 1 auto; justify-content: flex-start; }
+  .gemini-monitor-workspace-shell { padding: 10px; gap: 8px; border-radius: 12px; }
+  .gemini-monitor-workspace-head { gap: 7px; }
+  .gemini-monitor-view-switch { flex: 0 0 auto; }
+  .gemini-monitor-shell :is(button, input, select) { max-width: 100%; }
+  .gemini-monitor-shell :is(.gemini-server-control, .eveos-ai-provider-controls) { flex-wrap: wrap; min-width: 0; }
+  #loadingIndicator #gemini-ui-root .gemini-monitor-toolbar-actions {
+    flex-flow: row wrap; justify-content: flex-start; align-items: center;
+  }
+  #loadingIndicator #gemini-ui-root .gemini-server-control { width: auto; flex: 1 1 145px; }
+  #loadingIndicator #gemini-ui-root .gemini-monitor-view-switch { width: auto; flex: 1 1 145px; }
+  #loadingIndicator #gemini-ui-root .gemini-monitor-view-btn {
+    min-width: 0; white-space: normal; overflow-wrap: anywhere; padding-inline: 6px;
+  }
+}
+/* The WatchFusion overlay is independent of EveOS header sizing. Keep header actions reachable. */
+@media (max-width: 760px) {
+  .watchfusion-shell-head { min-width: 0; max-width: 100%; }
+  .watchfusion-brand { min-width: 0; }
+  .watchfusion-head-actions { min-width: 0; flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; }
+  .watchfusion-head-actions button { max-width: 100%; }
+}
