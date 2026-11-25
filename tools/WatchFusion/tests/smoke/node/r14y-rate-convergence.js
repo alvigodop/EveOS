@@ -7,11 +7,11 @@ import {fileURLToPath} from 'node:url';
 const ROOT=process.env.WF_FALSIFIER_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
 const read=rel=>fs.readFileSync(path.join(ROOT,rel),'utf8');
 function lab({rates=[.75,1],trusted=true,mirror=false,source=true,actualRate=true,startingError=.2,
-    decoderDelayMs=()=>0,buffered=()=>true,bufferOnPlay=false}={}) {
+    decoderDelayMs=()=>0,buffered=()=>true,bufferOnPlay=false,savedModel={}}={}) {
   let now=50000,position=now/1000+startingError,last=now,speed=1,ops=[];
   let playerState=1,playAt=now;
   const ctx={Math,Number,Date,Map,Set,JSON,console,setTimeout:()=>1,clearTimeout(){},performance:{now:()=>now}};
-  ctx.globalThis=ctx;ctx.window=ctx;ctx.storage={get:()=>JSON.stringify({rateHonored:false,rateRejections:2}),set:()=>{}};
+  ctx.globalThis=ctx;ctx.window=ctx;ctx.storage={get:()=>JSON.stringify({rateHonored:false,rateRejections:2,...savedModel}),set:()=>{}};
   ctx.WatchFusionTimelineMath={observePosition:(at,v)=>({value:v,since:at}),projectedPosition:(at,v)=>v,chooseRate:()=>null};
   vm.runInNewContext(read('public/client/viewer-release-evidence.js'),ctx,{filename:'viewer-release-evidence.js'});
   vm.runInNewContext(read('public/client/viewer-sync-arbiter.js'),ctx,{filename:'viewer-sync-arbiter.js'});
@@ -198,4 +198,53 @@ export async function runR14yChecks(check){
     assert.equal(gate.snapshot().attempts,1);
   }
  });
+ await check('ADAPTIVE06D-01:stale-TV-gain-does-not-drive-790ms-lag-through-target',()=>{
+  const L=lab({rates:[.75,1,1.25],startingError:-.79,savedModel:{rateGain:.71}});
+  play(L,{end:65000,step:250});
+  assert.ok(Math.abs(L.position()-L.now()/1000)<=.05,`residual ${L.position()-L.now()/1000}`);
+  assert.deepEqual(L.ops,[['rate',1.25],['rate',1]]);
+ });
+ await check('ADAPTIVE06D-02:inconclusive-790ms-trial-allows-one-qualified-opposite-direction-finish',()=>{
+  const L=lab({rates:[.75,1,1.25]}), scope='room:video:epoch:seg3';
+  const gate=L.ctx.WatchFusionReleaseEvidence.createTvRateRecheckGate();
+  const input={scope,io:L.io,rateHonored:false,quietStallMs:30000,quietRejoinMs:30000};
+  for(let t=0;t<=4500;t+=250)gate.consider({...input,nowMs:t,error:.79});
+  assert.equal(gate.snapshot().attempts,1);gate.settle(scope,undefined);
+  let finish=null;for(let t=5000;t<=20000;t+=250)finish=gate.consider({...input,nowMs:t,error:-.295})||finish;
+  assert.equal(finish?.rate,.75);assert.equal(gate.snapshot().attempts,2);gate.settle(scope,undefined);
+  for(let t=21000;t<=40000;t+=250)assert.equal(gate.consider({...input,nowMs:t,error:-.295}),null);
+ });
+ await check('ADAPTIVE06D-03:rejected-trial-never-earns-opposite-direction-retry',()=>{
+  const L=lab({rates:[.75,1,1.25]}), scope='room:video:epoch:seg3';
+  const gate=L.ctx.WatchFusionReleaseEvidence.createTvRateRecheckGate();
+  const input={scope,io:L.io,rateHonored:false,quietStallMs:30000,quietRejoinMs:30000};
+  for(let t=0;t<=4500;t+=250)gate.consider({...input,nowMs:t,error:.79});
+  gate.settle(scope,'rejected');
+  for(let t=5000;t<=20000;t+=250)assert.equal(gate.consider({...input,nowMs:t,error:-.295}),null);
+  assert.equal(gate.snapshot().attempts,1);
+ });
+
+ await check('ADAPTIVE06D-04:follow-up-is-gated-by-advertised-rate-source-trust-and-scope',()=>{
+  const L=lab({rates:[.75,1,1.25]}), scope='room:video:epoch:seg3';
+  for(const mode of ['no-slow-rate','untrusted','mirror','changed-segment']){
+    const gate=L.ctx.WatchFusionReleaseEvidence.createTvRateRecheckGate();
+    const input={scope,io:L.io,rateHonored:false,quietStallMs:30000,quietRejoinMs:30000};
+    for(let t=0;t<=4500;t+=250)gate.consider({...input,nowMs:t,error:.79});
+    gate.settle(scope,undefined);
+    const io={...L.io,...(mode==='no-slow-rate'?{availableRates:()=>[1,1.25]}:mode==='untrusted'?{sourceReferenceQualified:()=>false}:mode==='mirror'?{mirrorContradicted:()=>true}:{})};
+    for(let t=5000;t<=20000;t+=250)assert.equal(gate.consider({...input,io,scope:mode==='changed-segment'?'room:video:epoch:seg4':scope,nowMs:t,error:-.295}),null,mode);
+    assert.equal(gate.snapshot().attempts,1);
+  }
+ });
+ await check('ADAPTIVE06D-05:phase-brake-is-viewer-only-and-does-not-infer-rate-capability',()=>{
+  const L=lab(), brake=L.ctx.WatchFusionReleaseEvidence.viewerRateBrake;
+  const io={...L.io,target:()=>1,current:()=>1.01};
+  const job={before:.79,recheck:true};
+  assert.equal(brake(job,io,50000),true);
+  for(const changes of [{hostLinked:true},{follower:false},{sourceBuffering:()=>true},{sourceReferenceQualified:()=>false},{mirrorContradicted:()=>true},{referenceUncertaintyMs:()=>36}])assert.equal(brake(job,{...io,...changes},50000),false);
+  assert.equal(brake({...job,before:.079},io,50000),false);
+  assert.equal(brake({...job,recheck:false},io,50000),false);
+  assert.equal(brake({before:.79},io,50000),false);
+ });
+
 }

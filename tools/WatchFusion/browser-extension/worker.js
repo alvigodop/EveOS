@@ -131,7 +131,7 @@ function sendSourceSample(sample, tabMuted) {
   const uncertaintyMs = best ? best.rtt / 2 + (offsets.at(-1) - offsets[0]) + 8 : Infinity;
   const clock = close.length >= 3 && uncertaintyMs <= 125 && sample.sampledAt > 0 && now - sample.sampledAt >= 0 && now - sample.sampledAt <= 1500
     ? {serverSampledAt:sample.sampledAt + offsets[Math.floor(offsets.length / 2)], uncertaintyMs} : {};
-  statePeer?.metadata({...sample, ...clock, ...(typeof tabMuted === 'boolean' ? {tabMuted} : {}), publisherSentAt:now});
+  statePeer?.metadata({...sample, ...clock, ...(typeof tabMuted === 'boolean' ? {tabMuted} : {}), sourcePlayerSilenced, publisherSentAt:now});
 }
 
 function connectStatePublisher(config) {

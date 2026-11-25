@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { runSourceWorkerChecks } from './v13107-falsifiers-source-worker.js';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -63,6 +64,125 @@ function roomGlobals(ctx, player, {targetOffsetSec, uncertaintyMs = 110, host = 
 }
 
 export async function runV13107Checks(check) {
+  await check('WF06C-01:quiet precise host trims a stable 32ms offset without waiting for drift',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.968});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:10});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:10});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(10000);
+    assert.ok(Math.abs(40-p.position)*1000<=16);assert.equal(p.rate,1);
+    assert.ok(p.calls.every(([kind])=>kind==='rate'));
+  });
+  await check('WF06C-02:neutral measured trials and timestamp contamination share one bounded rearm',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.948});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:10});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:10});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    let starts=0;const events=[];ctx.watchFusionRoomSyncLog={note:(kind,detail)=>events.push({kind,...detail})};
+    p.setPlaybackRate=r=>{p.calls.push(['rate',r]);if(r!==1)starts++;else p.position=29.948+ctx.clock()/1000;p.rate=r;};
+    p.getCurrentTime=()=>p.position+(p.rate!==1&&starts===2?.055:0);
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(200000);
+    assert.equal(starts,6);assert.equal(p.rate,1);
+    assert.equal(events.filter(e=>e.kind==='zero-actuator-measurement-rearmed').length,1);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,false);
+  });
+  await check('WF06C-03:visibility changes do not replenish exhausted same-segment no-effect budget',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.925});let visibility;
+    ctx.document.addEventListener=(kind,fn)=>{if(kind==='visibilitychange')visibility=fn;};
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:75,timelineObservedAtMs:ctx.clock()});
+    ctx.tick=at=>{p.position=29.925+at/1000;};
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(55000);
+    ctx.document.hidden=true;visibility();ctx.advance(2000);ctx.document.hidden=false;visibility();ctx.advance(100000);
+    assert.equal(p.calls.filter(([kind,r])=>kind==='rate'&&r!==1).length,3);assert.equal(p.rate,1);
+  });
+  await check('WF06C-04:small host trims still require low clock uncertainty and quiet measurements',()=>{
+    for(const precision of [11,20]){
+      const ctx=world(),p=fakePlayer(ctx,{position:29.968});
+      roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:precision});
+      ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:precision});
+      ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+      ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:32,timelineObservedAtMs:ctx.clock()});
+      vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(20000);
+      assert.equal(p.calls.length,0);
+    }
+  });
+  await check('WF06C-05:slow recurrent host drift is trimmed without transport jumps',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.968});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:10});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:10});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    const tick=ctx.tick;let last=0;ctx.tick=at=>{tick(at);p.position-=(at-last)*.0000005;last=at;};
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);
+    for(let i=0;i<18;i++){ctx.advance(10000);assert.ok(Math.abs(30+ctx.clock()/1000-p.position)*1000<35);}
+    assert.ok(p.calls.filter(([kind,r])=>kind==='rate'&&r!==1).length>=2);
+    assert.ok(p.calls.every(([kind])=>kind==='rate'));assert.equal(p.rate,1);
+  });
+  await check('WF06C-06:visibility interruption immediately restores an active rate',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.925});let visibility;
+    ctx.document.addEventListener=(kind,fn)=>{if(kind==='visibilitychange')visibility=fn;};
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(2275);
+    assert.equal(p.rate,1.25);ctx.document.hidden=true;visibility();assert.equal(p.rate,1);
+    const count=p.calls.length;ctx.advance(60000);assert.equal(p.calls.length,count);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().capabilities[0].attempts,1);
+  });
+  await check('WF06B-01:contaminated early media reads earn one bounded retry, not false rate proof',()=>{
+    const ctx=world(), p=fakePlayer(ctx,{position:29.925});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    const events=[];ctx.watchFusionRoomSyncLog={note:(kind,detail)=>events.push({kind,...detail})};
+    // Getter acknowledges but actual media never accelerates. A temporary
+    // 55ms read jump matches the 51-103ms contaminated samples in the trace.
+    let commands=0; p.setPlaybackRate=r=>{p.calls.push(['rate',r]); if(r!==1)commands++;p.rate=r;};
+    ctx.tick=at=>{p.position=29.925+at/1000;};
+    p.getCurrentTime=()=>p.position+(p.rate!==1?.055:0);
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);
+    ctx.advance(55000);assert.equal(commands,3);assert.equal(p.rate,1);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,false);
+    ctx.advance(130000);assert.equal(commands,6);assert.equal(p.rate,1);
+    assert.equal(events.filter(e=>e.kind==='zero-actuator-measurement-rearmed').length,1);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().capabilities[0].rearms,1);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,false);
+  });
+  await check('WF06B-02:clean later evidence after one initial timestamp jump can qualify a real actuator',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.8});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:(30+ctx.clock()/1000-p.position)*1000,timelineObservedAtMs:ctx.clock()});
+    // Report an initial cached-time refresh only while rate is applied.
+    p.getCurrentTime=()=>p.position+(p.rate!==1?.055:0);
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);
+    ctx.advance(2500);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().active,true);
+    ctx.advance(9000);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,true);
+    assert.ok(Math.abs(30+ctx.clock()/1000-p.position)<.08);
+    assert.equal(p.rate,1);
+  });
+  await check('WF06B-03:an acknowledged no-effect actuator never earns contamination rearm',()=>{
+    const ctx=world(),p=fakePlayer(ctx,{position:29.925});
+    roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({timelineErrorMs:75,timelineObservedAtMs:ctx.clock()});
+    ctx.tick=at=>{p.position=29.925+at/1000;};
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);ctx.advance(200000);
+    assert.equal(p.calls.filter(([kind,r])=>kind==='rate'&&r!==1).length,3);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,false);
+    assert.equal(p.rate,1);
+  });
   await check('V13107-00B:a-delayed-host-rate-response-qualifies-only-with-measured-progress',()=>{
     for(const delay of [100,1000]){
       const ctx=world(), p=fakePlayer(ctx,{position:29.941});
@@ -216,160 +336,11 @@ export async function runV13107Checks(check) {
         assert.equal(ctx.nodes.get('watchfusionEnableRoomAudio')?.hidden, false, 'shows Enable room audio'); }
     }
   });
-  await check('V13107-08:source-tab-mute-is-verified-and-reasserted', () => {
-    const src = read('browser-extension/worker.js');
-    assert.ok(!/chrome\.tabs\.update\(tabId,\{muted:true\}\)\.catch\(\(\)=>\{\}\)/.test(src), 'mute failures are no longer swallowed');
-    assert.match(src, /muteVerified=after\?\.mutedInfo\?\.muted===true/, 'mute is read back after the update');
-    assert.match(src, /const muted=await ensureSourceTabMuted\(tabId,sender\.tab\?\.mutedInfo\?\.muted===false\)/, 'an audible source sample awaits a verified mute recheck');
-    assert.match(src, /sendSourceSample\(sample\.metadata,muted\)/, 'source telemetry carries verified mute, not a stale sender flag');
-    assert.match(src, /chrome\.tabs\.update\(tabId,\{muted:previousMuted\}\)/, 'unlink restores the original mute state');
-  });
-  await check('V13107-08A:cold-worker-remutes-before-sampling-and-restores-the-original-tab-mute', async () => {
-    for (const previousMuted of [false, true]) {
-      const lab = sourceWorkerLab(previousMuted);
-      const event = previousMuted ? { status: 'complete' } : { mutedInfo: { muted: false } };
-      await Promise.all([lab.update(event), lab.link.status()]);
-      assert.equal(lab.muted(), true);
-      assert.equal(lab.peers.length, 1);
-      const firstPeer = lab.peers[0];
-      firstPeer.options.onReady();
-      assert.equal(firstPeer.samples.at(-1)?.tabMuted, true);
-      await Promise.all([lab.update({ status: 'complete' }), lab.link.status()]);
-      assert.equal(lab.peers.length, 1);
-      assert.equal(lab.muted(), true);
-      await lab.link.stop();
-      assert.equal(lab.muted(), previousMuted);
-      assert.equal(lab.saved.sourceTab, undefined);
-    }
-  });
-  await check('V13107-08B:unlink-restores-mute-after-an-in-flight-reassertion', async () => {
-    const lab = sourceWorkerLab(false);
-    assert.equal((await lab.link.status()).linked, true);
-    lab.unmute();
-    const pending = lab.deferTabRead();
-    const update = lab.update({ mutedInfo: { muted: false } });
-    await pending.started;
-    const unlink = lab.link.stop();
-    pending.release();
-    await Promise.all([update, unlink]);
-    assert.equal(lab.muted(), false);
-    assert.equal(lab.saved.sourceTab, undefined);
-  });
-  await check('V13107-08C:pairing-mutes-the-tab-before-starting-the-probe', async () => {
-    for (const previousMuted of [false, true]) {
-      const lab = sourceWorkerLab(previousMuted, { linked: false });
-      const pairing = 'http://localhost:9087/#live=' + 'a'.repeat(36) + '.' + 'b'.repeat(48);
-      assert.equal((await lab.link.startCurrentTab(pairing, { tabId: 5, windowId: 2 })).ok, true);
-      assert.equal(lab.queriedWindow(), 2);
-      assert.equal(lab.muted(), true);
-      await lab.link.stop();
-      assert.equal(lab.muted(), previousMuted);
-    }
-  });
-  await check('V13107-08D:popup-status-verifies-native-mute-and-identifies-the-owned-tab', async () => {
-    const lab = sourceWorkerLab(false);
-    await lab.link.status();
-    lab.unmute();
-    const status = await lab.link.status({ verifyMute: true });
-    assert.equal(status.sourceTabId, 5);
-    assert.equal(status.tabMuted, true);
-    assert.equal(lab.muted(), true);
-  });
-  await check('V13107-08E:source-starting-to-play-rechecks-the-native-mute', async () => {
-    const lab = sourceWorkerLab(false);
-    await lab.link.status();
-    lab.unmute();
-    await lab.update({ audible: true });
-    assert.equal(lab.muted(), true);
-  });
-  await check('V13107-08F:source-player-silence-belongs-to-the-selected-link', async () => {
-    const lab = sourceWorkerLab(false);
-    await lab.link.status();
-    assert.equal((await lab.link.setSourcePlayerSilence(6, true)).ok, undefined);
-    assert.equal(lab.saved.sourcePlayerSilenced, undefined);
-    const enabled = await lab.link.setSourcePlayerSilence(5, true);
-    assert.equal(enabled.silencedMedia, 1);
-    assert.equal((await lab.link.status()).sourcePlayerSilenced, true);
-    assert.equal(lab.saved.sourcePlayerSilenced, true);
-    await lab.update({ status:'complete' });
-    assert.equal(lab.probeStartModes.at(-1), true);
-    await lab.link.stop();
-    assert.equal(lab.saved.sourcePlayerSilenced, undefined);
-  });
+  await runSourceWorkerChecks(check, read);
   await check('V13107-09:new-modules-are-in-the-served-bundle-in-order', () => {
     const b = read('src/server/static-files.js');
     const order = ['client/linked-playback-sync.js', 'client/linked-tab.js', 'client/solo-link-sync.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/zero-converge.js', 'client/room-audio-unlock.js']
       .map(n => b.indexOf("'" + n + "'"));
     assert.ok(order.every(i => i > 0) && order.every((v, i) => !i || v > order[i - 1]), 'bundle order ' + order.join(','));
   });
-}
-
-function sourceWorkerLab(previousMuted, { linked = true } = {}) {
-  const tabId = 5;
-  let muted = linked ? false : previousMuted;
-  let update;
-  let onMessage;
-  let deferRead;
-  let queriedWindow;
-  const probeStartModes = [];
-  const peers = [];
-  const saved = linked ? {
-    sourceTab: tabId, sourceTabWasMuted: previousMuted,
-    sourceLinkConfig: { base: 'http://localhost:9087', id: 'publisher', token: 'test' }
-  } : {};
-  const session = {
-    get: async () => ({ ...saved }),
-    set: async (values) => { Object.assign(saved, values); },
-    remove: async (keys) => keys.forEach((key) => { delete saved[key]; })
-  };
-  class LivePeer {
-    constructor(options) { this.options = options; this.samples = []; peers.push(this); }
-    metadata(sample) { this.samples.push(sample); }
-    stop() { this.closed = true; }
-  }
-  const ctx = vm.createContext({
-    URL,
-    importScripts() {},
-    WatchFusionLivePeer: LivePeer,
-    chrome: {
-      runtime: { onMessage: { addListener: (listener) => { onMessage = listener; } } },
-      storage: { session },
-      scripting: { executeScript: async () => [{ frameId: 0 }] },
-      tabs: {
-        query: async ({ windowId }) => { queriedWindow = windowId; return [{ id: tabId }]; },
-        get: async () => {
-          if (deferRead) await deferRead();
-          return { id: tabId, url: 'https://example.test/media', mutedInfo: { muted } };
-        },
-        update: async (id, changes) => { assert.equal(id, tabId); muted = changes.muted; },
-        sendMessage: async (id, message) => {
-          if (message.type === 'source-player-silence') return { silencedMedia: message.enabled ? 1 : 0 };
-          if (message.type !== 'probe-start') return;
-          probeStartModes.push(message.sourcePlayerSilenced);
-          assert.equal(muted, true, 'Browser tab must be muted before collecting source samples');
-          onMessage({ to: 'worker', type: 'sample', hasMedia: true }, {
-            tab: { id, url: 'https://example.test/media', mutedInfo: { muted } }
-          }, () => {});
-        },
-        onRemoved: { addListener() {} },
-        onUpdated: { addListener: (listener) => { update = listener; } }
-      }
-    }
-  });
-  vm.runInContext(read('browser-extension/worker.js'), ctx);
-  return {
-    peers, saved, probeStartModes, link: ctx.WatchFusionMediaLink,
-    update: (info) => update(tabId, info),
-    muted: () => muted,
-    queriedWindow: () => queriedWindow,
-    unmute: () => { muted = false; },
-    deferTabRead: () => {
-      let release;
-      let notify;
-      const gate = new Promise((resolve) => { release = resolve; });
-      const started = new Promise((resolve) => { notify = resolve; });
-      deferRead = () => { deferRead = null; notify(); return gate; };
-      return { started, release };
-    }
-  };
 }

@@ -75,7 +75,8 @@ function ensurePlayer(videoId, recoveryStart = null) {
           onStateChange: onYouTubeStateChange,
           onPlaybackRateChange: onYouTubeRateChange,
           onVolumeChange: onYouTubeVolumeChange,
-          onAutoplayBlocked: () => {
+          onAutoplayBlocked: event => {
+            if (event?.target && event.target !== ytPlayer) return; window.WatchFusionRoomAudioUnlock?.autoplayBlocked?.();
             const playingState = window.YT?.PlayerState?.PLAYING ?? 1;
             const alreadyPlaying = ytPlayer?.getPlayerState?.() === playingState;
             if (roomId && !userGesturePrimeUsed && !alreadyPlaying) {
@@ -148,62 +149,59 @@ function primeYouTubePlayer(force = false) {
   installUserGesturePrime();
   if (!ytPlayer || !ytPlayerReady || primingPlayer) return Promise.resolve();
   if (playerPrimed && !force) return Promise.resolve();
+  const player = ytPlayer, video = pendingVideoId, room = roomId, epoch = state?.presentationEpoch;
+  const same = () => ytPlayer === player && pendingVideoId === video && roomId === room && state?.presentationEpoch === epoch;
   primingPlayer = true; window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
   suppressAudioPersistence = true;
-  const targetPosition = Number(state?.playback?.position) || 0;
   const wasApplyingRemote = applyingRemote;
   applyingRemote = true;
-  return new Promise((resolve) => {
-    let settled = false;
-    let sawPlaying = false;
+  return new Promise(resolve => {
+    let settled = false, sawPlaying = false, first = null, watch = null, timeout = null, warm = false;
     const finish = () => {
       if (settled) return;
-      settled = true;
+      settled = true; clearInterval(watch); clearTimeout(timeout);
+      if (!same()) { primingPlayer = false; applyingRemote = wasApplyingRemote; suppressAudioPersistence = false; resolve(); return; }
       try {
         window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
-        ytPlayer.pauseVideo?.();
-        if (!followsRoomPlayback()) ytPlayer.seekTo?.(targetPosition, true);
+        // Only warm a paused room, never pause an already-running join to prime it.
+        if (state?.playback?.paused) {
+          player.pauseVideo?.();
+          const target = Number(state.playback.position) || 0;
+          const current = Number(player.getCurrentTime?.());
+          if (!followsRoomPlayback() && (!Number.isFinite(current) || Math.abs(current-target)>.5)) player.seekTo?.(target, true);
+        }
       } catch {}
-      playerPrimed = sawPlaying;
-      if (!sawPlaying) {
-        autoplayWasBlocked = true;
-        installUserGesturePrime();
-      }
+      playerPrimed = warm;
+      if (!warm) { autoplayWasBlocked = true; installUserGesturePrime(); }
       primingPlayer = false;
       if (!applyRoomAudioState()) restorePlayerAudioPrefs();
       applyingRemote = wasApplyingRemote;
       setTimeout(() => { suppressAudioPersistence = false; }, 0);
+      window.watchFusionRoomSyncLog?.note?.('startup-prime-result', {reason:warm?'motion-confirmed':sawPlaying?'decoder-unverified':'play-unconfirmed'});
       resolve();
     };
-    const timeout = setTimeout(finish, 2500);
-    const start = () => {
+    const observe = () => {
+      if (!same()) return finish();
       try {
-        const stateNow = ytPlayer.getPlayerState?.();
-        if (stateNow === YT.PlayerState.PLAYING) {
-          sawPlaying = true;
-          clearTimeout(timeout);
-          finish();
-          return;
-        }
-        ytPlayer.mute?.();
-        ytPlayer.playVideo?.();
-        const watch = setInterval(() => {
-          if (ytPlayer?.getPlayerState?.() === YT.PlayerState.PLAYING) {
-            sawPlaying = true;
-            clearInterval(watch);
-            clearTimeout(timeout);
-            finish();
-          }
-        }, 40);
-        setTimeout(() => clearInterval(watch), 2200);
-      } catch {
-        clearTimeout(timeout);
-        finish();
-      }
+        if (player.getPlayerState?.() !== YT.PlayerState.PLAYING) { first = null; return; }
+        sawPlaying = true;
+        const at = performance.now(), pos = Number(player.getCurrentTime?.());
+        if (!Number.isFinite(pos)) { first = null; return; }
+        if (!first) { first = {at,pos}; return; }
+        const elapsed = at-first.at, advance = pos-first.pos;
+        if (elapsed < 200) return;
+        const rate = Number(player.getPlaybackRate?.()) || 1;
+        if (advance >= elapsed/1000*rate*.5 && advance <= elapsed/1000*rate*1.5+.04) {
+          warm = true; finish();
+        } else if (elapsed >= 500 || advance < -.08 || advance > elapsed/1000*rate*1.5+.04) first = {at,pos};
+      } catch { finish(); }
     };
-    const stateNow = ytPlayer.getPlayerState?.();
-    if (stateNow === YT.PlayerState.PLAYING || stateNow === YT.PlayerState.PAUSED || stateNow === YT.PlayerState.CUED) start();
-    else setTimeout(start, 50);
+    timeout = setTimeout(finish, state?.playback?.paused ? 4500 : 2500);
+    try {
+      if (state?.playback?.paused) player.mute?.();
+      if (player.getPlayerState?.() !== YT.PlayerState.PLAYING) { player.mute?.(); player.playVideo?.(); }
+      watch = setInterval(observe, 50); observe();
+    } catch { finish(); }
   });
 }
 function onYouTubeError(event) {

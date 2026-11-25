@@ -6,9 +6,9 @@
   const copy = document.getElementById('syncRoomLogCopy');
   const clear = document.getElementById('syncRoomLogClear');
   const count = document.getElementById('syncRoomLogCount');
-  const MAX_ENTRIES = 420, MAX_AGE = 600000;
-  // v13.10.8g: a correction opens a short, capped burst of denser snapshots (500 ms, 6 s) so a landing and its
-  // rebound are visible; local ring only, nothing is uploaded. Normal cadence stays 4.5 s.
+  const MAX_ENTRIES = 1200, MAX_EVENTS = 1800, MAX_AGE = 1800000;
+  let droppedSnapshots=0,droppedEvents=0;
+  // Correction burst: 500 ms snapshots for 6 s reveal landing/rebound; local-only, normal cadence 4.5 s.
   const BURST = /^(?:host-source-(?:rejoin-accepted|landing-incomplete|backoff|settled)|host-rejoin-accepted|rejoin-landing|zero-converge-pulse)$/;
   let burstUntil = -Infinity, lastHealthKey = '', lastHealthCritical = false;
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
@@ -41,7 +41,6 @@
       peerSpreadMs:finite(d.peerSpreadMs),hostErrorMs:finite(d.hostErrorMs),peerErrorMs:finite(d.peerErrorMs),
       gapMs:finite(d.gapMs),dwellMs:finite(d.dwellMs),verifyMs:finite(d.verifyMs),linkedSource:linked(d.linkedSource)};
   }
-  // v13.10.8e: the source-led host controller (host-source-converge.js) was dropped at every hop before this.
   function linked(d) {
     if(!d||typeof d!=='object')return null;
     const reasons=/^[a-z-]{1,42}$/;
@@ -66,10 +65,8 @@
   }
   const localRecovery = () => ({hostRecovery:{...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),
     linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null}});
-  // Player-vs-player only from two or more fresh, playing, trusted rows whose own player is audible. A muted room
-  // player still has a valid timeline, but when the laptop's sound comes from the source tab that timeline is not
-  // what anyone hears, so it is never a witness here. groupPhase is player-timeline agreement, never speaker sync.
-  // The bound is the two widest clock bounds; a stale, thin, coarse or unstable clock leaves it unbounded.
+  // Group phase needs two fresh, playing, trusted audible players; source-tab audio is not a player witness.
+  // Timeline agreement is not speaker sync. Bound = two widest clock bounds, or unbounded if any is unqualified.
   function outputIdentity(fresh) {
     const outs=fresh.map(p=>p.sensor?.audibleOutput||'unknown');
     return !outs.length?null:outs.includes('both')?'double-audio':outs.includes('source-tab')?'source-tab-audible':
@@ -79,8 +76,7 @@
     const fresh=rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&p.reportAgeMs!==null&&p.reportAgeMs<=2700&&
       !p.signals.includes('UNTRUSTED_PLAYER_OFFSET'));
     const usable=fresh.filter(p=>['player','both'].includes(p.sensor?.audibleOutput)),outputs=outputIdentity(fresh);
-    // R14u adds a separate AUDIO-INDEPENDENT player-timeline comparison.
-    // Never silently promote it to groupPhase: source-tab audio is not this player's speaker.
+    // Audio-independent timelines must never be promoted to audible groupPhase.
     const timelineErrors=fresh.map(p=>p.targetErrorMs).sort((a,b)=>a-b);
     const timelineSpreadMs=timelineErrors.length>=2 ? timelineErrors.at(-1)-timelineErrors[0] : null;
     const timelinePhase=timelineSpreadMs===null?'no-peer-comparison':timelineSpreadMs<=50?'player-timelines-within-50':
@@ -96,9 +92,7 @@
       spread<=Math.max(75,uncertainty+20)?'near-alignment':'players-disagree';
     return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,groupPhase:phase,outputs,...timeline};
   }
-  // A linked source remains a timeline authority even when the host embedded
-  // YouTube iframe is unembeddable. Native tab mute is reported by the extension;
-  // the page cannot claim it was muted without a recent publisher confirmation.
+  // Linked source remains authority even without an embeddable host. Native mute requires fresh publisher evidence.
   function linkedSourceEvidence(peers, coordination, now) {
     if(state?.linkedSourceActive!==true) return null;
     const sourceAgeMs=Number.isFinite(coordination?.sourceReferenceAt)?finite(now-coordination.sourceReferenceAt):null;
@@ -116,11 +110,10 @@
       tabMuted===true&&hostPlaying?'room-player':tabMuted===true&&!hostPlaying?'host-player-unavailable':'unverified';
     return {mode:live?'live-linked-source':'unverified-source-reference',sourceAgeMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs),hostPlayerPlaying:host?.playing??null,
-      tabMuted,muteSampleAgeMs:muteAgeMs,audioRoute};
+      tabMuted,muteSampleAgeMs:muteAgeMs,audioRoute,sourcePlayerSilenced:muteAgeMs!==null&&muteAgeMs>=0&&muteAgeMs<=2000&&typeof metadata?.sourcePlayerSilenced==='boolean'?metadata.sourcePlayerSilenced:null,
+      sourcePlayerSilenceSampleAgeMs:typeof metadata?.sourcePlayerSilenced==='boolean'?muteAgeMs:null,sourceLogicalVolumePct:muteAgeMs!==null&&muteAgeMs>=0&&muteAgeMs<=2000&&Number.isFinite(metadata?.volume)&&metadata.volume>=0&&metadata.volume<=1?finite(metadata.volume*100):null,hostPlayerAudible:typeof host?.audible==='boolean'?host.audible:null};
   }
-  // R14v: plateau is longitudinal evidence that two advancing video/player
-  // timelines have a stable separation.  It is NOT an audio calibration or a
-  // new correction target.  Retain the measured 170 ms from the physical run.
+  // Plateau = stable separation of advancing timelines, NOT audio calibration or a correction target.
   function plateauEvidence(rows, timeline, coordination, now) {
     const scope = [state?.presentationEpoch, state?.source?.videoId, state?.playoutSegment].join(':');
     if (scope !== plateauScope) { plateauScope = scope; plateauSamples = []; }
@@ -161,12 +154,10 @@
     if(lastSegmentKey)events.push({at:new Date().toISOString(),kind:'playback-segment-transition',sequence:segmentSequence+1});
     lastSegmentKey=key;segmentSequence++;prune();
   }
-  // R14t: decoder progress is distinct from fresh network-clock calibration.
-  // Preserve raw positions for diagnosis; do not certify a room-sync phase while
-  // the startup gate reports stalled/unverified decoding or recovery ownership.
+  // Keep raw positions, but do not certify sync during unverified decoding or recovery ownership.
   function decoderProgressUnverified(peer) {
     return ['decoder-stalled','decoder-buffering','decoder-warming','decoder-advancing','awaiting-play','awaiting-first-frame'].includes(peer.startupPhase)
-      || /^(?:viewer-stalled-while-playing|viewer-warming-after-play|stall-recovery-exhausted|auto-correction-suspended|rejoin-|stall-kick|settling)/.test(peer.recentCorrection || '')
+      || /^(?:viewer-stalled-while-playing|viewer-warming-after-play|stall-recovery-exhausted|auto-correction-suspended|rejoin-|stall-kick|settling|tv-decoder-settling)/.test(peer.recentCorrection || '')
       || peer.decoderRecovery?.outcome === 'terminal-recovery-spent';
   }
   function strip(peer, now, coordination) {
@@ -205,6 +196,8 @@
       signals.push('RECOVERY_BUDGET_EXHAUSTED');
     if (last && last.corrections !== null && corrections !== null && corrections > last.corrections)
       signals.push('SEEK_COUNT_INCREASED_' + (corrections - last.corrections));
+    if (last && last.corrections!==null && corrections!==null && corrections<last.corrections) signals.push('CORRECTION_COUNTER_RESET');
+    if (last && last.decoderSteps!=null && decoderSteps!=null && decoderSteps<last.decoderSteps) signals.push('DECODER_COUNTER_RESET');
     if (last && last.phase !== null && phase !== null && Math.abs(phase - last.phase) > 900)
       signals.push('PLAYER_PHASE_JUMP');
     lastPeers.set(peer.member, {phase, corrections, recoveries, decoderSteps});
@@ -221,7 +214,7 @@
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
       startupPhase:/^[a-z-]{1,30}$/.test(peer.startupPhase)?peer.startupPhase:null, audioReadiness:/^[a-z-]{1,30}$/.test(peer.audioReadiness)?peer.audioReadiness:null,
       corrections, action:peer.recentCorrection || null,
-      correctionOwner:/^(?:tv-decoder-first|decoder-(?:recovery|manual-restart))/.test(peer.recentCorrection||'')?'bounded-decoder-rescue':
+      correctionOwner:/^(?:tv-decoder-(?:first|settling)|decoder-(?:recovery|manual-restart))/.test(peer.recentCorrection||'')?'bounded-decoder-rescue':
         /^(?:tv-post-release-duplicate-blocked|tv-healthy-plateau-no-speaker-proof|tv-motion-|tv-reference-)/.test(peer.recentCorrection||'')?'observe-only':
         /^(?:rejoin-|stall-kick|rate-|track-start-qualified-rejoin|late-release-retry-started)/.test(peer.recentCorrection||'')?'viewer-arbiter':null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
@@ -273,11 +266,11 @@
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
       row.groupPhase !== entries.at(-1)?.groupPhase || row.timelinePhase !== entries.at(-1)?.timelinePhase ||
       row.linkedSourceEvidence?.audioRoute !== entries.at(-1)?.linkedSourceEvidence?.audioRoute ||
-      row.linkedSourceEvidence?.mode !== entries.at(-1)?.linkedSourceEvidence?.mode ||
-      row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting || rows.some(p=>{const q=entries.at(-1)?.peers?.find(x=>x.device===p.device);return q&&(q.startupPhase!==p.startupPhase||q.audioReadiness!==p.audioReadiness);});
+      row.linkedSourceEvidence?.mode !== entries.at(-1)?.linkedSourceEvidence?.mode || row.linkedSourceEvidence?.sourcePlayerSilenced !== entries.at(-1)?.linkedSourceEvidence?.sourcePlayerSilenced ||
+      row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting || rows.some(p=>{const q=entries.at(-1)?.peers?.find(x=>x.device===p.device);return q&&(q.startupPhase!==p.startupPhase||q.audioReadiness!==p.audioReadiness||q.decoderRecovery?.outcome!==p.decoderRecovery?.outcome||q.decoderRecovery?.steps!==p.decoderRecovery?.steps||((q.action==='tv-decoder-settling')!==(p.action==='tv-decoder-settling')));});
     if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : lastHealthCritical ? 1100 : 4500)) return;
     lastKey = key; lastAt = now;
-    entries.push(row); prune();
+    row.localRuntime=runtimeEvidence(); entries.push(row); prune();
     const local=rows.find(p=>p.freeze), health=local?.freeze;
     const healthKey=health ? [health.state,health.guard,health.owner].join(':') : '';
     if (healthKey && healthKey !== lastHealthKey) note('sync-health-state', {reason:health.state, guard:health.guard || 'none', owner:health.owner, playerErrorMs:health.playerErrorMs, heldMs:health.heldMs});
@@ -288,7 +281,7 @@
     const scope = currentScope();
     if (scope === roomScope) return;
     roomScope = scope;
-    entries = []; events = [];
+    entries = []; events = []; droppedSnapshots=droppedEvents=0;
     lastPeers.clear();
     lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;observedSong=0;lastSongKey='';plateauScope='';plateauSamples=[];
     window.WatchFusionFreezeTelemetry?.reset?.();
@@ -296,16 +289,19 @@
     requestAt = -Infinity;
     area.value = '';
   }
-  function prune() {
-    entries = entries.filter(row => Date.now() - Date.parse(row.at) < MAX_AGE).slice(-MAX_ENTRIES);
-    events = events.filter(row => Date.now()-Date.parse(row.at) < MAX_AGE).slice(-MAX_ENTRIES);
+  function prune(full=false) {
+    const at=Date.now(), n=entries.length, e=events.length;
+    if(full || n&&at-Date.parse(entries[0].at)>=MAX_AGE) entries=entries.filter(row=>at-Date.parse(row.at)<MAX_AGE);
+    if(full || e&&at-Date.parse(events[0].at)>=MAX_AGE) events=events.filter(row=>at-Date.parse(row.at)<MAX_AGE);
+    if(entries.length>MAX_ENTRIES) entries=entries.slice(-MAX_ENTRIES); if(events.length>MAX_EVENTS) events=events.slice(-MAX_EVENTS);
+    droppedSnapshots+=n-entries.length; droppedEvents+=e-events.length;
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:ui-intent|source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied|expired|anchor-rebased)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|host-zero-(?:pulse-gated|rate-recheck-verified)|host-hold-(?:started|result)|tv-next-release-model-adjusted|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent|manual-restart)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
+    if(!roomScope || !/^(?:ui-intent|source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied|expired|anchor-rebased)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|zero-actuator-(?:finished|verified|verification-lost|sample-rejected|measurement-rearmed)|runtime-(?:visibility|freeze|resume|timer-gap)|host-zero-(?:pulse-gated|rate-recheck-verified)|host-hold-(?:started|result)|tv-next-release-model-adjusted|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent|manual-restart)|room-audio-(?:unlocked|reapplied|needs-tap|deferred|retry-pending)|startup-prime-result|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
     recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','observedPeerCount','observedPeerErrorMs','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','expectedMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','clockGapMs','clockEvidence','durationMs','playerErrorMs','heldMs','owner','guard']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','observedPeerCount','observedPeerErrorMs','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','expectedMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','clockGapMs','clockEvidence','durationMs','playerErrorMs','heldMs','owner','guard','hidden','phaseMs','extraMs','targetProgressMs']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
@@ -325,17 +321,44 @@
     if (peers.length) emit(estimatedServerNow(), peers, coordination, roster);
     else render();
   }
+  // Local allowlist only: no parent access, room IDs, URLs, tokens, storage, player metadata or network requests.
+  function localActuatorEvidence() {
+    const num=v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=10000000?Math.round(v*1000)/1000:null;
+    const word=v=>typeof v==='string'&&/^[a-z][a-z0-9-]{0,47}$/.test(v)?v:null;
+    try {
+      const a=window.watchFusionViewerArbiter?.snapshot?.(), z=window.WatchFusionZeroConverge?.diagnostics?.();
+      const m=a?.model, d=z?.actuator, audio=window.WatchFusionRoomAudioUnlock?.diagnostics?.(), startup=window.watchFusionYouTubeStartup?.snapshot?.();
+      const rates=typeof ytPlayer!=='undefined' ? ytPlayer?.getAvailablePlaybackRates?.() : null;
+      return {schema:1,embedded:window.parent!==window,controllerPresent:!!z,controllerVersion:word(window.WatchFusionZeroConverge?.version),
+        readinessVersion:word(window.WatchFusionRoomAudioUnlock?.version),recoveryVersion:word(window.WatchFusionDecoderRescue?.version),
+        audio:{reason:word(audio?.reason),needsTap:audio?.needsTap===true,blockedEvents:num(audio?.blockedEvents),softDeferrals:num(audio?.softDeferrals),motionVerified:audio?.motionVerified===true},
+        startup:{phase:word(startup?.transitionPhase),firstProgressDelayMs:num(startup?.firstProgressDelayMs),stalledMs:num(startup?.stalledMs)},
+        player:{rate:typeof ytPlayer!=='undefined'?num(ytPlayer?.getPlaybackRate?.()):null,rateMilli:typeof ytPlayer!=='undefined'?finite(ytPlayer?.getPlaybackRate?.()*1000):null,
+          availableRates:Array.isArray(rates)?rates.slice(0,16).filter(v=>typeof v==='number'&&Number.isFinite(v)&&v>=.1&&v<=4):[]},
+        arbiter:{locked:a?.locked===true,timelineErrorMs:num(a?.timelineErrorMs),reason:word(a?.reason),
+          model:{rateHonored:typeof m?.rateHonored==='boolean'?m.rateHonored:null,rateGain:num(m?.rateGain),
+            releaseLatencyMs:num(m?.releaseLatencyMs),leadMs:num(m?.leadMs),landingErrorMs:num(m?.landingErrorMs),landingMs:num(m?.landingMs)}},
+        zero:{reason:word(z?.reason),errorMs:num(z?.errorMs),medianMs:num(z?.medianMs),madMs:num(z?.madMs),
+          pulses:num(z?.pulses),strikes:num(z?.strikes),active:z?.active===true,
+          hostProbeUsed:z?.hostRateRecheck?.used===true,hostProbeProven:z?.hostRateRecheck?.measuredImprovement===true, capabilities:Array.isArray(z?.capabilities)?z.capabilities.slice(0,16).map(v=>({rate:typeof v.rate==='string'&&/^[0-9.]{1,8}:[0-9.]{1,8}$/.test(v.rate)?v.rate:null,status:word(v.status),attempts:num(v.attempts),contaminated:num(v.contaminated),retryable:num(v.retryable),rearms:num(v.rearms)})):[],
+          actuator:d?{verdict:word(d.verdict),verificationReason:word(d.verificationReason),requestedRate:num(d.requestedRate),baseRate:num(d.baseRate),
+            elapsedMs:num(d.elapsedMs),ackMs:num(d.ackMs),measuredPhaseMs:num(d.measuredPhaseMs),sampleRebased:d.sampleRebased===true,
+            beforeMs:num(d.beforeMs),residualMs:num(d.residualMs),improvementMs:num(d.improvementMs)}:null}};
+    } catch { return {schema:1,controllerPresent:false,error:'actuator-evidence-unavailable'}; }
+  }
+  function runtimeEvidence() {
+    try {const z=window.WatchFusionZeroConverge?.diagnostics?.(), a=window.watchFusionViewerArbiter?.snapshot?.(); return {hidden:typeof document.hidden==='boolean'?document.hidden:null,zeroReason:typeof z?.reason==='string'&&/^[a-z-]{1,48}$/.test(z.reason)?z.reason:null,tickGapMs:finite(z?.tickGapMs),maxTickGapMs:finite(z?.maxTickGapMs),active:z?.active===true,restoring:z?.restoring===true,probeCount:finite(z?.pulses),medianErrorMs:finite(z?.medianMs),madMs:finite(z?.madMs),arbiterErrorMs:finite(a?.timelineErrorMs),lastVerdict:['verified','inconclusive'].includes(z?.actuator?.verdict)?z.actuator.verdict:null,verificationReason:typeof z?.actuator?.verificationReason==='string'&&/^[a-z-]{1,48}$/.test(z.actuator.verificationReason)?z.actuator.verificationReason:null,residualMs:finite(z?.actuator?.residualMs),improvementMs:finite(z?.actuator?.improvementMs),rateMilli:typeof ytPlayer!=='undefined'?finite(ytPlayer?.getPlaybackRate?.()*1000):null};} catch{return null;}
+  }
   function exportPayload() {
     refreshScope();
-    prune();
+    prune(true);
     return {format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
-      diagnosticsVersion:'v13.10.8x-room-recovery',snapshots:entries,events};
+      diagnosticsVersion:'v13.10.8x-room-recovery',traceVersion:'adaptive-room-06d1-trace',retention:{maxSnapshots:MAX_ENTRIES,maxEvents:MAX_EVENTS,droppedSnapshots,droppedEvents},localRuntime:runtimeEvidence(),localActuator:localActuatorEvidence(),snapshots:entries,events};
   }
   function exported() { return JSON.stringify(exportPayload(),null,2); }
-  // Copies a ten-minute room trace without a large synchronous JSON.stringify or
-  // rendering the whole trace inside the live playback page's visible textarea.
-  // The same redacted schema remains available to diagnostics callers via export().
+  // Cooperative 30-minute copy avoids blocking/stringifying the whole trace or filling the live textarea.
+  // export() retains the same redacted schema.
   async function cooperativeExport() {
     const payload=exportPayload();
     const rows=payload.snapshots.slice(), transitions=payload.events.slice();
@@ -367,8 +390,7 @@
         try {await navigator.clipboard.writeText(content);copied=true;} catch {}
       }
       if(!copied) {
-        // On LAN http://, Clipboard API is often unavailable. Use an invisible
-        // temporary field; do not put hundreds of kB into the live log panel.
+        // LAN HTTP clipboard fallback uses a hidden field, not the visible live panel.
         const previous=document.activeElement;
         const temporary=document.createElement('textarea');
         temporary.value=content;
@@ -406,7 +428,8 @@
     }
   }
   copy?.addEventListener('click', () => void copyLog());
-  clear?.addEventListener('click', () => {entries=[];events=[];lastPeers.clear();lastKey='';lastRendered='';observedSong=0;lastSongKey='';render();});
+  clear?.addEventListener('click', () => {entries=[];events=[];droppedSnapshots=droppedEvents=0;lastPeers.clear();lastKey='';lastRendered='';observedSong=0;lastSongKey='';render();});
   panel.addEventListener('toggle', render);
+  for(const [event,kind] of [['visibilitychange','visibility'],['freeze','freeze'],['resume','resume']]) document.addEventListener?.(event,()=>note('runtime-'+kind,{hidden:document.hidden===true}));
   window.watchFusionRoomSyncLog = {export:exported, wantsSample, observe, note};
 })();

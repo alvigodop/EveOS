@@ -142,12 +142,12 @@
       save();
       return verdict;
     }
-    function endRate(io) {
+    function endRate(io, braked = false) {
       if (job?.kind !== 'rate') return;
       const verdict = probeRate(io), rejectedTrial = verdict==='rejected' && job.recheck;
       if (job.recheck) rateRecheck?.settle(scope, verdict);
-      io.rate(io.baseRate);
-      finish(io.now(), rejectedTrial ? 'rate-capability-not-honored' : 'rate-burst-complete');
+      io.rate(io.baseRate); if (braked && lastCorrection) lastCorrection.rateBraked=true;
+      finish(io.now(), rejectedTrial ? 'rate-capability-not-honored' : braked ? 'rate-phase-braked' : 'rate-burst-complete');
       if (rejectedTrial) phase = 'observe';
     }
     function startHold(nowMs, error, io) {
@@ -238,7 +238,7 @@
           probeRate(io)==='rejected' && job.recheck) {
         endRate(io); return;
       }
-      if(!job.rateVerdict)reason='rate-evidence-inconclusive';
+      if (globalThis.WatchFusionReleaseEvidence?.viewerRateBrake?.(job,io,nowMs)) {endRate(io,true);return;} if(!job.rateVerdict)reason='rate-evidence-inconclusive';
     }
     function learn(residual,io,nowMs) {
       const c = lastCorrection;
@@ -249,7 +249,7 @@
       }
       if (c.kind === 'rejoin' && c.releaseVerified && Number.isFinite(c.releasedAt) && nowMs-c.releasedAt >= 1200 && (lastStallSeenAt < c.releasedAt || (releaseEvidence?.qualified(c,nowMs)===true)) && io.referenceTrusted?.() === true && io.referenceUncertaintyMs?.() != null && Number.isFinite(io.referenceUncertaintyMs()) && io.referenceUncertaintyMs() <= 100 && Math.abs(residual) < .6) {
         model.releaseLatencySec = clamp(model.releaseLatencySec + clamp(residual * .35, -.06, .06), 0, 2); model.verifiedReleases = Math.min(100000,(model.verifiedReleases||0)+1); } else if (c.kind === 'hold' && c.cause !== 'source-recovery' && c.cause !== 'fine-lead' && Math.abs(residual) < 1.2) { model.releaseLatencySec = clamp(model.releaseLatencySec + residual * .8, 0, 2);
-      } else if (c.kind === 'rate' && Math.abs(c.before) > .05) {
+      } else if (c.kind === 'rate' && !c.rateBraked && Math.abs(c.before) > .05) {
         const achieved = (c.before - residual) / c.before;
         if (achieved > .2) model.rateGain = clamp(model.rateGain * achieved, .5, 1.5);
       }

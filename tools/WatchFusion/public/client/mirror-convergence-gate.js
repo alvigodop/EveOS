@@ -10,6 +10,10 @@
   let candidate = null, lastPublishedAt = -Infinity, held = 0, published = 0, lastNote = -Infinity, heldSinceNote = 0;
   let contradiction = null, clockEvidence = null, coherent = null;
   const clock = () => performance.now();
+  function nearSourcePhase(c) {
+    return Number.isFinite(c?.sourcePhaseMs) && (Math.abs(c.sourcePhaseMs) <= 35 ||
+      (Math.abs(c.sourcePhaseMs) <= 100 && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs >= 0 && c.uncertaintyMs <= 25));
+  }
   function defer(plan, metadata = {}, page = '') {
     if (!plan?.publish || plan.reason !== 'drift' || metadata.paused || metadata.ended) {
       candidate = null; return false;
@@ -27,7 +31,7 @@
     // Repetition against the publisher's last mirror anchor is not confirmation
     // of a room displacement when the independent source still follows the room.
     const disagrees = playout?.hasSourceReference?.(c, estimatedServerNow()) &&
-      (Math.abs(drift) > 2.5 || Math.abs(c.sourcePhaseMs) <= 35) &&
+      (Math.abs(drift) > 2.5 || nearSourcePhase(c)) &&
       Math.abs(drift * 1000 - c.sourcePhaseMs) > LARGE_SEC * 1000;
     if (!same || disagrees || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
       held++; heldSinceNote++;
@@ -78,7 +82,7 @@
     if (plan?.reason !== 'drift' || !Number.isFinite(plan.drift) || Math.abs(plan.drift) <= LARGE_SEC ||
         !page || metadata.pageUrl !== page || metadata.paused || metadata.ended || metadata.buffering ||
         !Number.isFinite(age) || age < 0 || age > 500 || rate !== c?.rate ||
-        !Number.isFinite(c?.sourcePhaseMs) || Math.abs(c.sourcePhaseMs) > 35 ||
+        !nearSourcePhase(c) ||
         !Number.isFinite(sourceAtSample) || !Number.isFinite(currentTime) || Math.abs(currentTime * 1000 - sourceAtSample) > 60 ||
         !playout?.hasSourceReference?.(c, serverNow)) { coherent = null; return false; }
     if (!advancing(metadata, page, c.segment, 'rebase')) return false;

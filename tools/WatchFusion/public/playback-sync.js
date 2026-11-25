@@ -288,6 +288,7 @@
       reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
       rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();arbiter?.intent('pause',io);window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId,isHost()?null:target);replayLoads++;}});
     if (manualDecoder && decoderRescue(buffering, startup?.stalledMs >= 6500)) { diagnostics.action='decoder-manual-restart';setStatus('TV decoder recovery · restarting this player…');return true; }
+    if (!isHost() && !explicitSync && window.WatchFusionDecoderRescue?.settling?.({scope,nowMs,ready:startup?.ready===true,playing:playerState===1,buffering,position:current,rate:baseRate})) { diagnostics.action='tv-decoder-settling'; setStatus('TV decoder recovering · verifying playback…'); if (!buffering && playerState!==1 && !playerEnded) requestViewerPlayback(); return true; }
     if (!force && buffering) {
       if (decoderRescue(true)) { diagnostics.action='decoder-recovery'; setStatus('TV decoder recovery · restarting this player once…'); return true; }
       if (!viewerWasBuffering) resetDriftSensor('buffering');
@@ -430,7 +431,6 @@
         arbiter?.observePosition(performance.now(), Number(ytPlayer.getCurrentTime?.()));
     } catch {}
   }, 50);
-
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshAnchor(true);

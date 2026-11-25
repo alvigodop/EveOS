@@ -320,7 +320,7 @@
     const videoKey=scope=>String(scope||'').split(':').slice(0,3).join(':');
     function settle(scope, verdict) {
       const trial=spent.get(videoKey(scope));
-      if(trial?.scope===scope && trial.error>=.85 && !verdict)trial.mayFinish=true;
+      if(trial?.scope===scope && trial.error>=.45 && !verdict)trial.mayFinish=true;
     }
     function consider({scope,nowMs,error,io,rateHonored,quietStallMs,quietRejoinMs}) {
       const key=videoKey(scope),rates=io.availableRates?.();
@@ -330,7 +330,8 @@
         .sort((a,b)=>Math.abs(a-io.baseRate)-Math.abs(b-io.baseRate))[0] : null;
       const prior=spent.get(key);
       const finishing=prior?.mayFinish===true && prior.scope===scope &&
-        error>=.24 && error<=.43 && prior.error-error>=.45;
+        ((error>=.24 && error<=.43 && prior.error-error>=.45) ||
+        (error<=-.115 && error>=-.43 && prior.error-Math.abs(error)>=.25));
       if (prior && !finishing){reason='per-video-trial-spent';candidate=null;return null;}
       const precision=io.referenceUncertaintyMs?.();
       const largeLag = error >= .35;
@@ -356,6 +357,17 @@
     return {consider,settle,snapshot:()=>({reason,attempts,watching:!!candidate})};
   }
 
+  // The duration estimate is a ceiling, not a reason to keep moving past the target.
+  // A raw reading can stop a burst early; only settled evidence may prove success.
+  function viewerRateBrake(job,io,nowMs) {
+    if(job.recheck!==true || io.follower!==true || io.hostLinked===true || io.linkedSourceActive?.()!==true ||
+       Math.abs(job.before)<.10 || io.sourceReferenceQualified?.(100)!==true ||
+       io.referenceTrusted?.()!==true || io.sourceBuffering?.()===true || io.mirrorContradicted?.()===true) return false;
+    const error=io.target(nowMs)-io.current(), precision=io.referenceUncertaintyMs?.();
+    return Number.isFinite(error)&&Number.isFinite(precision)&&precision>=0&&precision<=35&&
+      Math.sign(job.before)*error<=.025;
+  }
+
   // Classify actual raw IFrame timeline movement, not an API rate-setting ack.
   // Short subsecond bursts otherwise end before the old 1600ms probe begins.
   function classifyRateProbe(job,io,nowMs) {
@@ -374,6 +386,6 @@
   globalThis.WatchFusionReleaseEvidence = Object.freeze({
     createReleaseEvidence, sourceRecoveryHoldEligible, createSourceRecoveryGate,
     createFixedRateFineGate, createFixedRatePlateauRecoveryGate, createLateReleaseRetryGate,
-    createTvRateRecheckGate, classifyRateProbe, tvRecoveryOwner:createTvRecoveryOwner()
+    createTvRateRecheckGate, classifyRateProbe, viewerRateBrake, tvRecoveryOwner:createTvRecoveryOwner()
   });
 })();

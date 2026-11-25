@@ -28,6 +28,22 @@
   let healthOffsets = [], healRearms = [], healCount = 0;
   let manualRestartAt = -Infinity;
   const rebuilds = [];
+  // Recovery owns a short, local decoder warmup; never refill action budgets here.
+  let warm = null;
+  function isSettling(raw, at) { return !!warm && raw === warm.scope && !document.hidden && Number.isFinite(at) && at >= warm.at && at-warm.at < 12000; }
+  function settling({scope: raw, nowMs: at, ready, playing, buffering, position, rate = 1} = {}) {
+    if (!warm) return false;
+    if (raw !== warm.scope || document.hidden || !Number.isFinite(at) || at < warm.at || at-warm.at >= 12000) { warm = null; return false; }
+    if (!ready || !playing || buffering || !Number.isFinite(position) || !Number.isFinite(rate) || rate <= 0) { warm.sample = null; warm.progress = 0; return true; }
+    const prev = warm.sample; warm.sample = {at,position};
+    if (prev) {
+      const dt = at-prev.at, dp = position-prev.position;
+      if (dt > 0 && dt <= 1000 && dp >= dt/1000*rate*.65 && dp <= dt/1000*rate*1.35+.025) warm.progress += dt;
+      else if (dt !== 0) warm.progress = 0;
+    }
+    if (warm.progress >= 3000 && at-warm.at >= 4000) { warm = null; return false; }
+    return true;
+  }
   // v13.10.8: the caller's scope is room:video:epoch:playoutSegment. The playout segment bumps on every
   // room transport rewrite (a frozen linked source re-mirrored once a second in Drift's trace), so it must
   // not restart the dwell or refill the budget. Dwell and budget belong to room:video:epoch; the budget
@@ -35,7 +51,7 @@
   const dwellScope = raw => String(raw ?? '').split(':').slice(0, 3).join(':');
   function enterScope(next) {
     if (next === scope) return;
-    scope = next; since = 0; steps = 0; lastStepAt = -Infinity; liveSeenAt = -Infinity;
+    warm = null; scope = next; since = 0; steps = 0; lastStepAt = -Infinity; liveSeenAt = -Infinity;
     healthySince = 0; healthyAt = -1; healthyPosition = null; healthyProgressMs = 0;
     healthOffsets = [];
     pausedAt = -1; wasRoomPaused = false; outcome = 'scope-change';
@@ -47,6 +63,7 @@
     if (!next || !Number.isFinite(nowMs)) return false;
     enterScope(next);
     if (paused === true) {
+      warm = null;
       if (!wasRoomPaused) { pausedAt = nowMs; wasRoomPaused = true; }
       return false;
     }
@@ -132,23 +149,27 @@
         Number.isFinite(input.stalledMs) && input.stalledMs < STALL_DWELL_MS) {
       since = 0; outcome = 'freeze-unverified'; return false;
     }
-    if (!since) { since = nowMs; outcome = 'confirming-wedged-decoder'; return false; }
-    if (nowMs - since < (input.buffering ? BUFFER_DWELL_MS : STALL_DWELL_MS)) return false;
+    // After the protected warmup, a still-wedged decoder with no budget
+    // needs no further action dwell: publish the spent status, not another command.
     if (steps >= 2) {
+      if (isSettling(input.scope, nowMs)) return false;
       if (outcome !== 'terminal-recovery-spent') input.onSpent?.();
       outcome = 'terminal-recovery-spent'; return false;
     }
+    if (!since) { since = nowMs; outcome = 'confirming-wedged-decoder'; return false; }
+    if (nowMs - since < (input.buffering ? BUFFER_DWELL_MS : STALL_DWELL_MS)) return false;
     if (steps === 1 && nowMs - lastStepAt < RETRY_AFTER_MS) { outcome = 'verifying-decoder-reload'; return false; }
     const recent = rebuilds.filter(t => nowMs - t < 600000);
     const rebuild = steps === 1 && recent.length < MAX_REBUILDS_PER_10_MIN && typeof input.rebuild === 'function';
     if (steps === 1 && !rebuild) { steps = 2; outcome = 'rebuild-budget-spent'; return false; }
     steps++; lastStepAt = nowMs; since = 0;
+    warm = {scope:input.scope,at:nowMs,sample:null,progress:0};
     try {
       if (rebuild) { rebuilds.push(nowMs); input.rebuild(); outcome = 'player-rebuilt-once'; }
       else { input.reload(); outcome = 'one-decoder-reload'; }
       window.watchFusionRoomSyncLog?.note?.('tv-decoder-' + (rebuild ? 'rebuild' : 'reload'), {positionMs: Math.round(Number(input.drift) * 1000)});
       return true;
-    } catch { outcome = 'recovery-failed'; return false; }
+    } catch { warm = null; outcome = 'recovery-failed'; return false; }
   }
   // The same thing a manual URL reload does for the player, without leaving the room.
   function rebuildPlayer(videoId, startSeconds) {
@@ -160,7 +181,7 @@
     ytPlayer = null; ytPlayerReady = false; playerPrimed = false; playerInitializing = false;
     ensurePlayer(videoId, startSeconds);
   }
-  window.WatchFusionDecoderRescue = {version: 'v13.10.8-r14s', consider, observeTransport, rebuildPlayer,
+  window.WatchFusionDecoderRescue = {version: 'adaptive-room-04c', consider, observeTransport, rebuildPlayer, settling, isSettling,
     diagnostics: () => ({scope, attempted: steps > 0, steps, outcome, healthyProgressMs: Math.round(healthyProgressMs),
       rearmCount, healCount, lastRearmDwellMs, pauseObserved: wasRoomPaused})};
 })();
