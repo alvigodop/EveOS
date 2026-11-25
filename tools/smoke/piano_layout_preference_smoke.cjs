@@ -1,0 +1,307 @@
+#!/usr/bin/env node
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const { chromium } = require('playwright');
+
+const web = path.resolve(__dirname, '../../tools/Piano-Auto-Player/web');
+const required = ['piano_controls.js', 'piano.js', 'piano_sound.js'];
+for (const name of required) assert(fs.existsSync(path.join(web, name)), `Missing ${name}`);
+const source = fs.readFileSync(path.join(web, 'piano_controls.js'), 'utf8');
+const soundSource = fs.readFileSync(path.join(web, 'piano_sound.js'), 'utf8');
+const indexSource = fs.readFileSync(path.join(web, 'index.html'), 'utf8');
+assert(source.includes('eveos:piano:layout:v1'), 'Layout preference must use the dedicated key');
+assert(source.includes('setLayout(layoutSelect.value, { persist: true })'), 'Changes must save the selected layout');
+assert(source.includes('eveos:piano:sound:v1'), 'Sound preference must use the dedicated key');
+assert(source.includes('setSound(soundSelect.value, { persist: true })'), 'Changes must save the selected sound');
+for (const [id, preset] of [
+  ['fluid_studio_grand', '0000_FluidR3_GM_sf2_file'],
+  ['fluid_electric_piano_1', '0040_FluidR3_GM_sf2_file'],
+  ['fluid_electric_piano_2', '0050_FluidR3_GM_sf2_file']
+]) {
+  assert(soundSource.includes(`${preset}.js`), `${id} must use its FluidR3 preset`);
+  assert(soundSource.includes(`_tone_${preset}`), `${id} must bind the matching preset variable`);
+  assert(indexSource.includes(`value="${id}"`), `${id} must be selectable in Internal Play`);
+}
+const recommendedOrder = [
+  'fluid_studio_grand', 'acoustic_grand', 'bright_acoustic',
+  'fluid_electric_piano_1', 'fluid_electric_piano_2',
+  'electric_grand', 'honky_tonk', 'legacy_synth'
+];
+let catalogCursor = -1;
+let selectorCursor = -1;
+for (const id of recommendedOrder) {
+  const nextCatalog = soundSource.indexOf(`  ${id}:`);
+  const nextSelector = indexSource.indexOf(`value="${id}"`);
+  assert(nextCatalog > catalogCursor, `${id} must keep the recommended catalog order`);
+  assert(nextSelector > selectorCursor, `${id} must keep the recommended selector order`);
+  catalogCursor = nextCatalog;
+  selectorCursor = nextSelector;
+}
+assert(indexSource.includes('value="acoustic_grand" selected'),
+  'Recommended ordering must not force the larger FluidR3 bank to preload by default');
+
+const fixture = `<!doctype html><html><head><meta charset="utf-8"></head><body>
+<select id="pianoLayout"><option value="61">61-key</option><option value="88">88-key</option></select>
+<select id="pianoSound"><option value="acoustic_grand" selected>Acoustic Grand</option><option value="legacy_synth">Legacy Synth</option></select>
+<select id="windowSelect"><option value="101" data-title="Piano Alpha">Piano Alpha</option><option value="202" data-title="Piano Beta">Piano Beta</option></select>
+<span id="pianoSoundStatus"></span><span id="pianoVisualMeta"></span>
+<div id="practicePiano"></div>
+<div id="backgroundPreview"></div>
+<script type="module">
+import { setupPianoControls } from '/assets/piano_controls.js';
+import { setupPianoFrontendAppBridge } from '/assets/piano_frontend_app_bridge.js';
+import { setupPianoPlaybackOverrides } from '/assets/piano_playback_overrides.js';
+import { InternalPreviewPlayer } from '/assets/internal_preview.js';
+import { PianoSoundEngine, setPianoOutputRoute } from '/assets/piano_sound.js';
+window.__previewStops = 0;
+const recorder = { setSound() {}, noteDownMidi() {}, noteUpMidi() {}, unlock() {}, prepareSound: async () => {} };
+const preview = { setSound() {}, stop() { window.__previewStops += 1; }, prepareSound: async () => {} };
+setupPianoControls({
+ layoutSelect: document.getElementById('pianoLayout'),
+ soundSelect: document.getElementById('pianoSound'),
+ soundStatus: document.getElementById('pianoSoundStatus'),
+ visualMeta: document.getElementById('pianoVisualMeta'),
+ piano: document.getElementById('practicePiano'),
+ recorder, preview
+});
+window.__bridge = setupPianoFrontendAppBridge({
+ els: { internalPlay: { checked: false }, window: document.getElementById('windowSelect') },
+ internalMode: () => false, current: () => ({}), activeSongId: () => '', status: () => ({ status: 'idle' }),
+ progress: () => ({ index: 0, total: 0 }), speed: () => 1, setSpeed() {}, play() {}, pause() {}, stop() {}
+});
+window.__bridge.restoreTargetWindow('');
+window.__runOverrideProof = async () => {
+ const events=[];
+ const overrideEls={internalPlay:{checked:false},window:document.getElementById('windowSelect')};
+ const override=setupPianoPlaybackOverrides({
+  els:overrideEls,api:{stop:async()=>({})},preview:{stop:()=>({})},
+  controls:{restorePreferences:async()=>events.push('restore'),setLayout:value=>(events.push('layout:'+value),true),setSound:async value=>(events.push('sound:'+value),true),setVolume:value=>events.push('volume:'+value)},
+  internalMode:()=>overrideEls.internalPlay.checked,refreshWindows:async()=>events.push('refresh'),currentSeekTotal:()=>1,setSeekTarget(){},toast(){},updateInputModeUI(){},
+  bridge:()=>({preferredInternalMode:()=>false,persistInternalMode:()=>events.push('persist'),restoreTargetWindow:()=>null}),onResumeEvent(){}
+ });
+ await override.applySongSettings({identifiers:{custom:{piano_playback_v1:{route:'internal',layout:'88',instrumentId:'fluid_studio_grand',internalVolumePercent:0}}}});
+ return {internal:overrideEls.internalPlay.checked,events};
+};
+window.__runBackgroundProof = () => {
+ const scheduled = [];
+ const output = {
+   unlock: async () => {}, setSound() {}, prepareSound: async () => true,
+   soundLabel: () => 'Fixture', allOff() {}, audioTime: () => 100,
+   scheduleMidi: (midi, id, at, duration) => scheduled.push({ midi, id, at, duration }),
+   scheduleToken() {}, highlightMidi() {}, unhighlightMidi() {},
+   highlightToken() {}, unhighlightToken() {}
+ };
+ const player = new InternalPreviewPlayer(document.getElementById('backgroundPreview'), output);
+ player._isBackgrounded = () => false;
+ player.start({ duration_ms: 130000, total_events: 4, events: [
+   { event_index: 1, at_ms: 1000, duration_ms: 80, midi_notes: [60] },
+   { event_index: 2, at_ms: 5000, duration_ms: 80, midi_notes: [62] },
+   { event_index: 3, at_ms: 70000, duration_ms: 80, midi_notes: [64] },
+   { event_index: 4, at_ms: 120000, duration_ms: 80, midi_notes: [65] }
+ ] }, 1, 0);
+ const foreground = scheduled.length;
+ window.dispatchEvent(new Event('blur'));
+  const blurred = scheduled.length;
+ player._scheduleAudio(180000);
+  const background = scheduled.length;
+  player._scheduleAudio(180000);
+ const deduplicated = scheduled.length;
+ player.stop();
+  return { foreground, blurred, background, deduplicated, scheduled };
+};
+window.__runBackgroundCountdownProof = () => {
+ const scheduled = [];
+ const output = {
+   unlock: async () => {}, setSound() {}, prepareSound: async () => true,
+   soundLabel: () => 'Fixture', allOff() {}, audioTime: () => 200,
+   scheduleMidi: (midi, id, at, duration) => scheduled.push({ midi, id, at, duration }),
+   scheduleToken() {}, highlightMidi() {}, unhighlightMidi() {},
+   highlightToken() {}, unhighlightToken() {}
+ };
+ const player = new InternalPreviewPlayer(document.getElementById('backgroundPreview'), output);
+ player._isBackgrounded = () => true;
+ player.start({ duration_ms: 5000, total_events: 2, events: [
+   { event_index: 1, at_ms: 0, duration_ms: 80, midi_notes: [60] },
+   { event_index: 2, at_ms: 4000, duration_ms: 80, midi_notes: [62] }
+ ] }, 1, 3);
+ const result = { state: player.state, scheduled: scheduled.length };
+ player.stop();
+ return result;
+};
+window.__runSampleOrderProof = async () => {
+ const operations = [];
+ const parameter = { value: 0, setValueAtTime() {}, setTargetAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {} };
+ const node = () => ({ connect() { return this; } });
+ class FixtureAudioContext {
+   constructor() { this.currentTime = 10; this.state = 'running'; this.sampleRate = 48000;
+     this.destination = node(); this.audioWorklet = { addModule: async () => {} }; }
+   createBufferSource() {
+     let started = false;
+     return { playbackRate: { value: 1 }, connect() { return this; }, addEventListener() {},
+       start(at) { started = true; operations.push(['start', at]); },
+       stop(at) { if (!started) throw new DOMException('stop before start', 'InvalidStateError'); operations.push(['stop', at]); } };
+   }
+   createGain() { return { gain: { ...parameter }, connect() { return this; } }; }
+   createDynamicsCompressor() {
+     return { threshold: {}, knee: {}, ratio: {}, attack: {}, release: {}, connect() { return this; } };
+   }
+    async setSinkId(value) { operations.push(['sink', value]); }
+ }
+ window.AudioContext = FixtureAudioContext;
+ window.AudioWorkletNode = class { constructor() { this.port = { postMessage() {}, onmessage: null }; } connect() { return this; } };
+  const route = await setPianoOutputRoute({ browserSinkId: 'cable-output', requestedLabel: 'CABLE Input' });
+ window._tone_0000_GeneralUserGS_sf2_file = { zones: [{
+   keyRangeLow: 0, keyRangeHigh: 127, originalPitch: 6000,
+   coarseTune: 0, fineTune: 0, loopStart: 0, loopEnd: 0, sampleRate: 44100, buffer: {}
+ }] };
+ const engine = new PianoSoundEngine('acoustic_grand');
+ await engine.prepare();
+ engine.scheduleMidi(60, 'sample:1', 11, 0.4);
+  return { operations, route };
+};
+window.__ready = true;
+</script></body></html>`;
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url || '/', 'http://127.0.0.1');
+  if (url.pathname === '/test') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(fixture);
+    return;
+  }
+  const match = /^\/assets\/([a-zA-Z0-9_.-]+\.js)$/.exec(url.pathname);
+  if (!match) { res.writeHead(404); res.end(); return; }
+  const file = path.join(web, match[1]);
+  if (!fs.existsSync(file)) { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+  fs.createReadStream(file).pipe(res);
+});
+
+async function check(browser, url, width) {
+  const context = await browser.newContext({ viewport: { width, height: 800 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  async function load() {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 10000 });
+  }
+  const state = () => page.evaluate(() => ({
+    value: document.getElementById('pianoLayout').value,
+    rendered: document.getElementById('practicePiano').dataset.layout,
+    keys: document.querySelectorAll('#practicePiano [data-midi]').length,
+    meta: document.getElementById('pianoVisualMeta').textContent,
+    saved: localStorage.getItem('eveos:piano:layout:v1'),
+    sound: document.getElementById('pianoSound').value,
+    soundSaved: localStorage.getItem('eveos:piano:sound:v1'),
+    target: document.getElementById('windowSelect').value,
+    targetSaved: localStorage.getItem('eveos:piano:target-window:v1'),
+    previewStops: window.__previewStops
+  }));
+  const change = value => page.evaluate(value => {
+    const select = document.getElementById('pianoLayout');
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+  const changeSound = value => page.evaluate(value => {
+    const select = document.getElementById('pianoSound'); select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+  try {
+    await load();
+    let s = await state();
+    assert.equal(s.value, '61'); assert.equal(s.rendered, '61'); assert.equal(s.keys, 61);
+    assert.equal(s.saved, null, 'Loading a default must not write a preference');
+    assert.equal(s.sound, 'acoustic_grand'); assert.equal(s.soundSaved, null);
+    assert.deepEqual(await page.evaluate(() => window.__runOverrideProof()), { internal:true, events:['layout:88','sound:fluid_studio_grand','volume:0'] },
+      'Per-song playback overrides must apply through the shared owner without rewriting global preferences');
+    await changeSound('legacy_synth');
+    s = await state(); assert.equal(s.sound, 'legacy_synth'); assert.equal(s.soundSaved, 'legacy_synth');
+    await page.evaluate(() => { const target=document.getElementById('windowSelect'); target.value='202'; window.__bridge.persistTargetWindow(); });
+    await change('88');
+    s = await state();
+    assert.equal(s.value, '88'); assert.equal(s.rendered, '88'); assert.equal(s.keys, 88);
+    assert.match(s.meta, /88-key A0/); assert.equal(s.saved, '88');
+    assert.equal(s.sound, 'legacy_synth', 'Internal Piano Sound must survive reload');
+    assert.equal(s.soundSaved, 'legacy_synth');
+    assert.equal(s.target, '202', 'Available target window must survive reload');
+    assert.match(s.targetSaved, /"hwnd":"202"/);
+    assert.equal(s.previewStops, 0, 'Layout changes must not stop active playback');
+    const background = await page.evaluate(() => window.__runBackgroundProof());
+    assert.equal(background.foreground, 4,
+      'Playback must prebuffer the complete two-minute minimized acceptance window before main-thread suspension');
+    assert.equal(background.blurred, 4, 'An embedded iframe blur must not duplicate scheduled notes');
+    assert.equal(background.background, 4, 'Hidden-page scheduling keeps the bounded stable window deduplicated');
+    assert.equal(background.deduplicated, 4, 'Repeated minimized scheduling must not duplicate notes');
+    assert.equal(new Set(background.scheduled.map(row => row.id)).size, 4, 'Scheduled notes use unique identities');
+    assert.ok(background.scheduled[3].at - background.scheduled[0].at > 110,
+      'The audio clock owns the full two-minute window without later main-thread callbacks');
+    const backgroundCountdown = await page.evaluate(() => window.__runBackgroundCountdownProof());
+    assert.deepEqual(backgroundCountdown, { state: 'playing', scheduled: 2 },
+      'A background page must start immediately instead of freezing in the countdown');
+    const sampleOrder = await page.evaluate(() => window.__runSampleOrderProof());
+    assert.deepEqual(sampleOrder.operations.map(row => row[0]), ['sink', 'start', 'stop'],
+      'Sampled voices must start before a finite-duration stop is scheduled');
+    assert.deepEqual(sampleOrder.route, { sinkId: 'cable-output', label: 'CABLE Input', applied: true },
+      'Piano output must follow the shared Audioflix browser sink when one is available');
+    await page.reload();
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 10000 });
+    s = await state();
+    assert.equal(s.value, '88'); assert.equal(s.rendered, '88'); assert.equal(s.keys, 88);
+    assert.match(s.meta, /88-key A0/); assert.equal(s.saved, '88');
+    await change('61');
+    await page.reload();
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 10000 });
+    s = await state();
+    assert.equal(s.value, '61'); assert.equal(s.rendered, '61'); assert.equal(s.keys, 61);
+    assert.equal(s.saved, '61');
+    await page.evaluate(() => localStorage.setItem('eveos:piano:layout:v1', 'invalid'));
+    await page.reload();
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 10000 });
+    s = await state();
+    assert.equal(s.value, '61'); assert.equal(s.rendered, '61'); assert.equal(s.keys, 61);
+    assert.deepEqual(errors, [], 'No browser JavaScript errors');
+    console.log(`PIANO_LAYOUT_PERSISTENCE_BROWSER_OK viewport=${width} restore88=PASS restore61=PASS playbackPreserved=PASS invalid=PASS`);
+  } finally { await context.close(); }
+}
+
+async function checkBlockedStorage(browser, url) {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Storage.prototype.getItem = () => { throw new Error('Storage denied'); };
+    Storage.prototype.setItem = () => { throw new Error('Storage denied'); };
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  try {
+    await page.goto(url);
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 10000 });
+    await page.evaluate(() => {
+      const select = document.getElementById('pianoLayout');
+      select.value = '88'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const mode = await page.locator('#practicePiano').getAttribute('data-layout');
+    assert.equal(mode, '88', 'Storage failure must not block switching layout');
+    assert.deepEqual(errors, [], 'No browser errors when storage is blocked');
+    console.log('PIANO_LAYOUT_PERSISTENCE_STORAGE_DENIED_OK');
+  } finally { await context.close(); }
+}
+
+(async () => {
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const url = `http://127.0.0.1:${server.address().port}/test`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    for (const width of [1280, 480]) await check(browser, url, width);
+    await checkBlockedStorage(browser, url);
+    console.log('EVEOS_PIANO_LAYOUT_PREFERENCE_SMOKE_OK');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+})().catch(error => { console.error(error.stack || error); process.exitCode = 1; });

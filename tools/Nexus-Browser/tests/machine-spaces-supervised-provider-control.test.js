@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
+const { verifyPrepared } = require('../machine-spaces/playwright-job-plan');
 const { createSupervisedJobCoordinator } = require('../machine-spaces/supervised-job');
 const { createSupervisedJobProviderControl } = require('../machine-spaces/supervised-job-provider-control');
 
@@ -9,11 +11,12 @@ function fixture() {
   const jobs = createSupervisedJobCoordinator({ idFactory: (() => { let n = 0; return () => `id-${++n}`; })() });
   const commandStore = new Map();
   const room = { id: 'room-one', machineSpaces: { spaces: [{ id: 'space-one', name: 'Build', resourceIds: ['terminal-one'] }] } };
-  const target = { id: 'terminal-one', processEpoch: 'session-one' };
+  const root = path.resolve(__dirname, '..', '..', '..');
+  const target = { id: 'terminal-one', processEpoch: 'session-one', type: 'cmd', cwd: root };
   const broker = { target: (id) => id === target.id ? target : null };
-  const control = createSupervisedJobProviderControl({ jobs, commandStore, broker,
+  const control = createSupervisedJobProviderControl({ jobs, commandStore, broker, repoRoot: root,
     getState: () => ({ rooms: [room] }), findSpace: (value, ref) => value.machineSpaces.spaces.find((space) => space.id === ref || space.name === ref) });
-  return { jobs, commandStore, control };
+  return { jobs, commandStore, control, target, root };
 }
 
 function input(action, command = {}, origin = undefined) {
@@ -37,6 +40,21 @@ test('agent may prepare but not remotely launch a supervised command', () => {
   assert.equal(commandStore.size, 1);
   assert.equal(control.owns('job_start'), false, 'remote provider surface must not expose launch');
   assert.equal(control.owns('job_rebound'), false, 'remote provider surface must not expose rebound');
+});
+
+test('agent may declare bounded idempotent recovery authority but still cannot launch it', () => {
+  const { control, commandStore } = fixture();
+  const command = { space: 'space-one', terminal: 'terminal-one', command: 'node package.json',
+    retrySafety: 'idempotent', repairFiles: ['package.json'], contextFiles: ['package.json'],
+    invariants: ['Only repair the disposable test target.'], requestId: 'recovery-authority-one' };
+  const request = input('job_prepare', command); request.requestId = command.requestId;
+  const result = control.route(request), stored = commandStore.get(result.data.jobId);
+  assert.equal(result.ok, true); assert.equal(stored.retrySafety, 'idempotent');
+  assert.deepEqual(stored.repairFiles, ['package.json']); assert.equal(control.owns('job_start'), false);
+  assert.equal(result.data.workflowEligible, true);
+  assert.match(result.data.chatApproval.requiredText, /^\/approve-workflow machine-job-/);
+  const conflict = structuredClone(request); conflict.command.repairFiles = ['README.md'];
+  assert.equal(control.route(conflict).code, 'MACHINE_JOB_REQUEST_CONFLICT');
 });
 
 test('job_prepare requires exact committed relay provenance', () => {
@@ -72,4 +90,42 @@ test('job status/list stay scoped to the authorized room and space', () => {
   const status = control.route(input('job_status', { space: 'space-one', jobId: prepared.data.jobId }, null));
   assert.equal(status.ok, true);
   assert.equal(status.data.jobId, prepared.data.jobId);
+});
+
+test('agent can queue only a registered Playwright smoke, with a reviewable job and receipt', () => {
+  const { control, commandStore, target, root } = fixture();
+  const args = { space: 'space-one', terminal: 'terminal-one', scenario: 'agent-nexus-browser' };
+  const req = input('playwright_prepare', args);
+  req.requestId = 'browser-proof-one';
+  const result = control.route(req);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.state, 'queued');
+  assert.equal(result.data.kind, 'playwright-acceptance');
+  const stored = commandStore.get(result.data.jobId);
+  assert.equal(stored.command, 'node tools/smoke/agent_nexus_browser_smoke.js');
+  assert.equal(stored.kind, 'playwright-acceptance');
+  assert.equal(stored.mode, 'qualification');
+  assert.match(stored.evidenceSha256, /^[a-f0-9]{64}$/);
+  assert.match(result.data.chatApproval.requiredText, new RegExp(`^/approve-playwright ${result.data.jobId} [a-f0-9]{12} [A-F0-9]{12}$`));
+  assert.equal(result.data.chatApproval.expired, false);
+  assert.ok(verifyPrepared({ stored, target, repoRoot: root }));
+  assert.equal(control.owns('playwright_start'), false);
+  assert.equal(control.owns('playwright_eval'), false);
+  const again = control.route(req);
+  assert.equal(again.ok, true);
+  assert.equal(again.data.jobId, result.data.jobId);
+  assert.equal(again.data.chatApproval.requiredText, result.data.chatApproval.requiredText);
+  assert.equal(commandStore.size, 1);
+  assert.equal(control.route(input('job_status', { space: 'space-one', jobId: result.data.jobId })).data.state, 'queued');
+});
+
+test('Playwright preparation fails closed for missing provenance and arbitrary browser input', () => {
+  const { control, commandStore } = fixture();
+  const params = { space: 'space-one', terminal: 'terminal-one', scenario: 'agent-nexus-browser' };
+  assert.equal(control.route(input('playwright_prepare', params, null)).code, 'MACHINE_JOB_ORIGIN_REQUIRED');
+  for (const extra of [{ url: 'https://example.com' }, { command: 'whoami' }, { script: 'arbitrary.js' }]) {
+    assert.equal(control.route(input('playwright_prepare', { ...params, ...extra })).code, 'MACHINE_PLAYWRIGHT_BAD_FIELD');
+  }
+  assert.equal(control.route(input('playwright_prepare', { ...params, scenario: 'arbitrary' })).code, 'MACHINE_PLAYWRIGHT_UNKNOWN_SCENARIO');
+  assert.equal(commandStore.size, 0);
 });

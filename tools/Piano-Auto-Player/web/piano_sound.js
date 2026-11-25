@@ -1,4 +1,13 @@
+import { createPianoOutputRouter, pianoPcmReady } from "./piano_pcm_capture.js";
+
 const SOUNDS = {
+  fluid_studio_grand: {
+    label: "Studio Grand Piano (FluidR3)",
+    url: "https://surikov.github.io/webaudiofontdata/sound/0000_FluidR3_GM_sf2_file.js",
+    variable: "_tone_0000_FluidR3_GM_sf2_file",
+    volume: 0.68,
+    sampled: true,
+  },
   acoustic_grand: {
     label: "Acoustic Grand Piano",
     url: "https://surikov.github.io/webaudiofontdata/sound/0000_GeneralUserGS_sf2_file.js",
@@ -11,6 +20,20 @@ const SOUNDS = {
     url: "https://surikov.github.io/webaudiofontdata/sound/0010_GeneralUserGS_sf2_file.js",
     variable: "_tone_0010_GeneralUserGS_sf2_file",
     volume: 0.70,
+    sampled: true,
+  },
+  fluid_electric_piano_1: {
+    label: "Electric Piano 1 (FluidR3)",
+    url: "https://surikov.github.io/webaudiofontdata/sound/0040_FluidR3_GM_sf2_file.js",
+    variable: "_tone_0040_FluidR3_GM_sf2_file",
+    volume: 0.66,
+    sampled: true,
+  },
+  fluid_electric_piano_2: {
+    label: "Electric Piano 2 (FluidR3)",
+    url: "https://surikov.github.io/webaudiofontdata/sound/0050_FluidR3_GM_sf2_file.js",
+    variable: "_tone_0050_FluidR3_GM_sf2_file",
+    volume: 0.66,
     sampled: true,
   },
   electric_grand: {
@@ -36,6 +59,8 @@ const SOUNDS = {
 
 let sharedContext = null;
 let sharedOutput = null;
+let sharedOutputVolume = 1;
+let sharedOutputRoute = { sinkId: "", label: "Default output", applied: true };
 const scriptLoads = new Map();
 const presetLoads = new Map();
 
@@ -54,11 +79,64 @@ function outputNode(ctx) {
   compressor.ratio.value = 7;
   compressor.attack.value = 0.003;
   compressor.release.value = 0.22;
-  master.gain.value = 0.62;
-  master.connect(compressor).connect(ctx.destination);
+  master.gain.value = 0.62 * sharedOutputVolume;
+  master.connect(compressor);
+  createPianoOutputRouter(ctx, compressor);
   sharedOutput = master;
   return sharedOutput;
 }
+
+export function setPianoMasterVolume(percent = 100) {
+  const value = Math.max(0, Math.min(100, Number(percent)));
+  sharedOutputVolume = Number.isFinite(value) ? value / 100 : 1;
+  if (sharedOutput && sharedContext) {
+    sharedOutput.gain.cancelScheduledValues(sharedContext.currentTime);
+    sharedOutput.gain.setTargetAtTime(0.62 * sharedOutputVolume, sharedContext.currentTime, 0.012);
+  }
+  return Math.round(sharedOutputVolume * 100);
+}
+
+export function pianoMasterVolume() { return Math.round(sharedOutputVolume * 100); }
+
+function normalizeDeviceLabel(value) {
+  return String(value || "").toLowerCase().replace(/\([^)]*(wasapi|directsound|mme)[^)]*\)/g, " ")
+    .replace(/windows\s+(wasapi|directsound)|\(mme\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export async function setPianoOutputRoute(route = {}) {
+  const ctx = audioContext(false);
+  const finish = value => {
+    sharedOutputRoute = value;
+    window.dispatchEvent(new CustomEvent("piano:audio-route", { detail: { ...sharedOutputRoute } }));
+    return { ...sharedOutputRoute };
+  };
+  if (typeof ctx.setSinkId !== "function") {
+    const requestedLabel = String(route.requestedLabel || "Default output");
+    return finish({ sinkId: "", label: requestedLabel, applied: !route.browserSinkId && /^default\b/i.test(requestedLabel), unsupported: true });
+  }
+  let sinkId = String(route.browserSinkId || "").trim();
+  const requestedLabel = String(route.requestedLabel || "Default output").trim();
+  if (!sinkId && requestedLabel && !/^default\b/i.test(requestedLabel) && navigator.mediaDevices?.enumerateDevices) {
+    const wanted = normalizeDeviceLabel(requestedLabel);
+    const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === "audiooutput");
+    const match = outputs.find(device => normalizeDeviceLabel(device.label) === wanted)
+      || outputs.find(device => wanted && (normalizeDeviceLabel(device.label).includes(wanted) || wanted.includes(normalizeDeviceLabel(device.label))));
+    sinkId = String(match?.deviceId || "");
+  }
+  if (!sinkId && requestedLabel && !/^default\b/i.test(requestedLabel)) {
+    return finish({ sinkId: "", label: requestedLabel, applied: false, unresolved: true });
+  }
+  try {
+    await ctx.setSinkId(sinkId);
+    sharedOutputRoute = { sinkId, label: requestedLabel || "Default output", applied: true };
+  } catch (error) {
+    sharedOutputRoute = { sinkId, label: requestedLabel, applied: false, error: String(error?.message || error) };
+  }
+  return finish(sharedOutputRoute);
+}
+
+export function pianoOutputRoute() { return { ...sharedOutputRoute }; }
+export function preparePianoPcmOutput() { outputNode(audioContext(false)); return pianoPcmReady(); }
 
 function loadScript(meta) {
   if (window[meta.variable]) return Promise.resolve(window[meta.variable]);
@@ -137,7 +215,7 @@ function findZone(preset, midi) {
   return preset?.zones?.find(zone => midi >= zone.keyRangeLow && midi <= zone.keyRangeHigh) || null;
 }
 
-function sampledVoice(ctx, preset, midi, volume = 1) {
+function sampledVoice(ctx, preset, midi, volume = 1, startAt = ctx.currentTime, durationSeconds = null) {
   const zone = findZone(preset, midi);
   if (!zone?.buffer) return null;
   const source = ctx.createBufferSource();
@@ -150,15 +228,24 @@ function sampledVoice(ctx, preset, midi, volume = 1) {
     source.loopStart = zone.loopStart / zone.sampleRate;
     source.loopEnd = zone.loopEnd / zone.sampleRate;
   }
-  const now = ctx.currentTime;
+  const now = Math.max(ctx.currentTime, Number(startAt) || ctx.currentTime);
+  const peak = Math.max(0.02, Math.min(0.9, volume));
+  let stopAt = null;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.02, Math.min(0.9, volume)), now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(peak, now + 0.008);
+  if (Number.isFinite(durationSeconds)) {
+    const releaseAt = now + Math.max(0.002, Number(durationSeconds));
+    gain.gain.setValueAtTime(peak, releaseAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt + 0.18);
+    stopAt = releaseAt + 0.21;
+  }
   source.connect(gain).connect(outputNode(ctx));
   source.start(now);
+  if (stopAt !== null) source.stop(stopAt);
   return { source, gain, sampled: true };
 }
 
-function synthVoice(ctx, midi, volume = 0.16) {
+function synthVoice(ctx, midi, volume = 0.16, startAt = ctx.currentTime, durationSeconds = null) {
   const freq = 440 * Math.pow(2, (Number(midi) - 69) / 12);
   const osc = ctx.createOscillator();
   const overtone = ctx.createOscillator();
@@ -172,15 +259,27 @@ function synthVoice(ctx, midi, volume = 0.16) {
   overtoneGain.gain.value = 0.11;
   filter.type = "lowpass";
   filter.frequency.value = 3200;
-  const now = ctx.currentTime;
+  const now = Math.max(ctx.currentTime, Number(startAt) || ctx.currentTime);
+  const releaseAt = Number.isFinite(durationSeconds)
+    ? now + Math.max(0.002, Number(durationSeconds))
+    : null;
   gain.gain.setValueAtTime(0.0001, now);
   gain.gain.exponentialRampToValueAtTime(volume, now + 0.008);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.025, volume * 0.35), now + 0.42);
+  gain.gain.exponentialRampToValueAtTime(
+    Math.max(0.025, volume * 0.35),
+    releaseAt === null ? now + 0.42 : Math.min(now + 0.42, releaseAt)
+  );
   osc.connect(filter);
   overtone.connect(overtoneGain).connect(filter);
   filter.connect(gain).connect(outputNode(ctx));
   osc.start(now);
   overtone.start(now);
+  if (releaseAt !== null) {
+    gain.gain.setValueAtTime(Math.max(0.025, volume * 0.35), releaseAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt + 0.11);
+    osc.stop(releaseAt + 0.14);
+    overtone.stop(releaseAt + 0.14);
+  }
   return { source: osc, overtone, gain, sampled: false };
 }
 
@@ -209,6 +308,8 @@ export class PianoSoundEngine {
   isSampled() { return Boolean(SOUNDS[this.soundId]?.sampled); }
 
   ensure() { return audioContext(true); }
+  audioTime() { return this.ensure().currentTime; }
+  async unlock() { const ctx=audioContext(false); if(ctx.state === "suspended") await ctx.resume(); if(ctx.state !== "running") throw new Error("Internal piano audio is waiting for browser playback permission."); return ctx; }
 
   setSound(soundId) {
     const next = SOUNDS[soundId] ? soundId : "acoustic_grand";
@@ -226,17 +327,29 @@ export class PianoSoundEngine {
   }
 
   downMidi(midi, id = `midi:${midi}`) {
+    return this._startMidi(midi, id, this.audioTime(), null);
+  }
+
+  scheduleMidi(midi, id, startAt, durationSeconds) {
+    return this._startMidi(midi, id, startAt, durationSeconds);
+  }
+
+  _startMidi(midi, id, startAt, durationSeconds) {
     const note = Number(midi);
-    if (!Number.isFinite(note) || this.active.has(id)) return;
+    if (!Number.isFinite(note) || this.active.has(id)) return false;
     const ctx = this.ensure();
     const meta = SOUNDS[this.soundId] || SOUNDS.acoustic_grand;
     let voice = null;
-    if (meta.sampled && this.readyPreset) voice = sampledVoice(ctx, this.readyPreset, note, meta.volume);
+    if (meta.sampled && this.readyPreset) voice = sampledVoice(ctx, this.readyPreset, note, meta.volume, startAt, durationSeconds);
     if (!voice) {
-      voice = synthVoice(ctx, note, meta.sampled ? 0.12 : meta.volume);
+      voice = synthVoice(ctx, note, meta.sampled ? 0.12 : meta.volume, startAt, durationSeconds);
       if (meta.sampled && !this.readyPreset) this.prepare().catch(() => {});
     }
     this.active.set(id, voice);
+    voice.source.addEventListener?.("ended", () => {
+      if (this.active.get(id) === voice) this.active.delete(id);
+    }, { once: true });
+    return true;
   }
 
   upMidi(id) {

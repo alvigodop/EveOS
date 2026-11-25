@@ -5,6 +5,17 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '../helpers/server-harness.js';
 import { request } from '../helpers/http-client.js';
+import { runPlaybackTimingChecks } from './playback-timing.js';
+import { runPresentationTimingChecks } from './presentation-timing.js';
+import { runAutomaticPlayoutChecks } from './automatic-playout.js';
+import { runRoomLogChecks } from './room-log-trace.js';
+import { runSyncLabChecks } from './sync-lab/scenarios.js';
+import { runV13105PolicyChecks } from './v13105-policy.js';
+import { runV13107Checks } from './v13107-falsifiers.js';
+import { runV13108Checks } from './v13108-falsifiers.js';
+import { runV13108eChecks } from './v13108e-falsifiers.js';
+import { runV13108fChecks } from './v13108f-falsifiers.js';
+import { runV13108gChecks } from './v13108g-falsifiers.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,7 +178,7 @@ export async function runFastSmoke() {
     assert.doesNotMatch(connection, /updateServerClock\(nextState\.serverTime, Date\.now\(\), Date\.now\(\)\)/);
     assert.match(bootstrap, /updateServerClock\(data\.state\.serverTime,sentAt,receivedAt\)/);
     assert.match(playbackSync, /SYNC_TOLERANCE_SEC = 0\.15/);
-    assert.match(commands, /if \(isHost\(\) && options\.hydrateHost !== true\) return;/);
+    assert.match(commands, /if \(!followsRoomPlayback\(\) && options\.hydrateHost !== true\) return;/);
     assert.match(commands, /watchFusionYoutubeStability\?\.observe[\s\S]*hostPlaybackEventAllowed/);
     assert.match(youtubeStability, /YT\.PlayerState\.BUFFERING/);
     assert.match(youtubeStability, /getVideoLoadedFraction/);
@@ -185,16 +196,16 @@ export async function runFastSmoke() {
     assert.match(youtubeModeCss, /button\[aria-pressed="true"\]/);
     assert.match(commands, /blocks embedding[\s\S]*stabilize\?\.\(\{ blocked: true \}\)/);
     assert.match(commands, /!ytPlayer \|\| !ytPlayerReady\)[\s\S]*setTimeout\(tick, 50\)/);
-    assert.match(commands, /const forceViewer = !isHost\(\)/);
+    assert.match(commands, /const forceViewer = followsRoomPlayback\(\)/);
     assert.match(commands, /syncPlayer\(\{ hydrateHost: true, force: forceViewer \}\)/);
-    assert.match(playbackSync, /SEEK_DRIFT_SEC = 0\.65/);
-    assert.match(playbackSync, /SENSOR_MIN_SAMPLES = 5/);
+    assert.match(playbackSync, /arbiter\.tick\(scope, nowMs, io\)/);
+    assert.doesNotMatch(playbackSync, /watchFusionGentleCatchup|watchFusionSeekHealth|createAutoRoomGovernor/);
     assert.doesNotMatch(playbackSync, /nearestHigherRate|nearestLowerRate/);
     assert.match(mediaPlayer, /mediaAnchorServerTime/);
     assert.match(mediaPlayer, /mediaEnsurePromise && mediaEnsureUrl === url/);
     assert.doesNotMatch(mediaPlayer, /host\.innerHTML\s*=/);
     assert.match(mediaPlayer, /host\.prepend\(mediaVideo\)/);
-    assert.match(mediaPlayer, /absoluteDrift >= 0\.20 \|\| \(mediaDriftCorrecting && absoluteDrift > 0\.12\)/);
+    assert.match(mediaPlayer, /mediaConvergence\.rate\(baseRate, drift, now(?:,|\))/);
     assert.match(continuityBridge, /transfer\.retryTimer = setInterval/);
     assert.match(continuityBridge, /completedTransferIds\.has\(data\.requestId\)/);
   });
@@ -224,7 +235,7 @@ export async function runFastSmoke() {
   });
 
   await check('FAST-02D:linked-youtube-sync-does-not-seek-loop', () => {
-    const context={Date,performance:{now:()=>5000}};context.globalThis=context;
+    const context={Date,performance:{now:()=>5000}};context.globalThis=context.window=context;
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.join(PROJECT_ROOT,'public','client','linked-playback-sync.js'),'utf8'),context);
     const sync=context.WatchFusionLinkedPlaybackSync,now=10000;
@@ -232,6 +243,10 @@ export async function runFastSmoke() {
     assert.deepEqual({...sync.youtubePlan({currentTime:10,paused:false,rate:1,sampledAt:9600},1,10.1,{now})},{target:10.4,drift:0.3000000000000007,seek:false,pause:false,play:false});
     assert.equal(sync.youtubePlan({currentTime:10,paused:false,rate:1,sampledAt:9600},3,10.1,{now}).play,false,'buffering must be allowed to recover without another play command');
     assert.equal(sync.youtubePlan({currentTime:10,paused:false,rate:1,sampledAt:9600},1,8,{now}).seek,true,'meaningful linked-player drift still corrects');
+    assert.deepEqual({...sync.transportTiming({sampledAt:1000,publisherReceivedAt:1040,publisherSentAt:1045,relayReceivedAt:1070,relaySentAt:1072,viewerReceivedAt:1120},1120)}, {
+      sourceToPublisherMs:40,publisherQueueMs:5,publisherToRelayMs:25,relayToViewerMs:48,sourceToViewerMs:120,sampleAgeMs:120
+    });
+    assert.equal(sync.transportTiming({sampledAt:2000,viewerReceivedAt:1000},1000).sourceToViewerMs,null,'clock reversal is never reported as transport latency');
     assert.equal(sync.positionJumped(10.2,{position:10,at:4800,playing:true,rate:1},5000),false,'ordinary buffering is not a source seek');
     assert.equal(sync.positionJumped(30,{position:10,at:4800,playing:true,rate:1},5000),true,'a genuine local scrub remains relayable');
     const commands=fs.readFileSync(path.join(PROJECT_ROOT,'public','client','commands.js'),'utf8');
@@ -239,6 +254,18 @@ export async function runFastSmoke() {
     assert.doesNotMatch(commands,/BUFFERING\)window\.watchFusionLinkedTab\.control\('seek'/);
     assert.doesNotMatch(linkedTab,/action===['"]play['"][\s\S]{0,120}peer\.control\(['"]seek['"]/);
   });
+
+  await runPlaybackTimingChecks(check);
+  await runPresentationTimingChecks(check);
+  await runAutomaticPlayoutChecks(check);
+  await runRoomLogChecks(check);
+  await runSyncLabChecks(check);
+  await runV13105PolicyChecks(check);
+  await runV13107Checks(check);
+  await runV13108Checks(check);
+  await runV13108eChecks(check);
+  await runV13108fChecks(check);
+  await runV13108gChecks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {
     const build = fs.readFileSync(path.join(PROJECT_ROOT, 'scripts', 'BUILD-NUVIO.bat'), 'utf8');

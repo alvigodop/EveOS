@@ -1,0 +1,268 @@
+// v13.10.8g falsifiers: closed-loop host-source convergence. Fixture = Drift's 2026-11-17 07:20-07:23 UTC Trace v3
+// (laptop only): attempt 1 triggered at 327 ms and resumed at ~407 ms; attempt 2 triggered at 434 ms, read 92 ms
+// while the arbiter held a paused pre-seeked player, then resumed at 345 -> 463 -> 649 ms. Red on 9e19c199: the
+// controller retried a move that made things worse, could count a held-player reading, ignored a mirror gate holding
+// a ~1.3 s source disagreement, and nothing measured commanded vs landed vs released positions.
+// Evidence type: Node VM with deterministic clocks only. Not Playwright, not Windows, not audible playback.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = process.env.WF_FALSIFIER_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const exists = rel => fs.existsSync(path.join(ROOT, rel));
+
+function host() {
+  let now = 0; const notes = [];
+  const ctx = {window: {watchFusionRoomSyncLog: {note: (kind, detail) => notes.push({kind, ...detail})}}, performance: {now: () => now}, console, Math, Number};
+  vm.runInNewContext(read('public/client/host-source-converge.js'), ctx);
+  return {H: ctx.window.WatchFusionHostSourceConverge, notes, kinds: () => notes.map(n => n.kind)};
+}
+const make = (o = {}) => ({scope: 'room:video:epoch', segment: 4, nowMs: 0, errorMs: 340,
+  coordination: {source: 'live', sourcePhaseMs: 19, reference: 'linked-tab', uncertaintyMs: 10}, sourceAgeMs: 300,
+  publisher: true, sameVideo: true, peerPresent: false, active: true, ...o});
+function drive(H, o, start, end, step = 250) {
+  for (let t = start; t <= end; t += step) if (H.consider(make({...o, nowMs: t}))) return t;
+  return null;
+}
+// After accept: the arbiter owns the player for `ownedMs` (inactive), then the resumed player reads `resumed(t)`.
+function verify(H, at, ownedMs, resumed, endMs, heldReading = null) {
+  for (let t = at + 250; t <= at + endMs; t += 250) {
+    const owned = t - at < ownedMs;
+    if (H.consider(make({nowMs: t, active: !owned, errorMs: owned ? (heldReading ?? 0) : resumed(t - at - ownedMs)}))) return t;
+  }
+  return null;
+}
+
+export async function runV13108gChecks(check) {
+  await check('V13108G-01:trace-attempt-1-worse-landing-stops-the-actuator-instead-of-retrying', () => {
+    const {H, notes, kinds} = host();
+    const t1 = drive(H, {errorMs: 327}, 2000, 12000);
+    assert.ok(t1 !== null, 'fixture must trigger attempt 1 at 327 ms');
+    H.accept(true, t1);
+    verify(H, t1, 2500, ms => 407 + ((ms / 250) % 2 ? 4 : -4), 9000);
+    const d = H.diagnostics();
+    assert.equal(d.outcome, 'solo-source-no-progress');
+    assert.equal(d.beforeMs, 327); assert.ok(d.residualMs >= 400 && d.residualMs <= 412); assert.ok(d.progressMs < 0);
+    const backoff = notes.find(n => n.kind === 'host-source-backoff');
+    assert.ok(backoff && backoff.beforeMs === 327 && backoff.progressMs < 0, 'the stop is recorded with its evidence');
+    assert.equal(drive(H, {errorMs: 407}, t1 + 9500, t1 + 60000), null, 'no second rejoin after a worsening landing');
+    assert.equal(H.diagnostics().attempts, 1);
+    assert.ok(!kinds().includes('host-source-settled'));
+  });
+
+  await check('V13108G-02:a-held-player-reading-and-a-brief-dip-never-count-as-landing', () => {
+    const {H} = host();
+    const t2 = drive(H, {errorMs: 434}, 2000, 12000);
+    H.accept(true, t2);
+    // 92 ms while the arbiter holds the paused, pre-seeked player (inactive), then 345 -> 463 -> 649 ms.
+    verify(H, t2, 1500, ms => ms < 2500 ? 345 : ms < 4500 ? 463 : 520, 9000, 92);
+    let d = H.diagnostics();
+    assert.notEqual(d.stage, 'settled'); assert.equal(d.outcome, 'solo-source-no-progress');
+    assert.ok(d.residualMs > 434, 'the residual is the resumed window, not the 92 ms held reading');
+    // 200 ms of real improvement that rebounds by >200 ms is not progress either.
+    const b = host(), t = drive(b.H, {errorMs: 500}, 2000, 12000);
+    b.H.accept(true, t);
+    verify(b.H, t, 1000, ms => ms < 2000 ? 300 : 520, 9000);
+    d = b.H.diagnostics();
+    assert.equal(d.outcome, 'solo-source-no-progress'); assert.notEqual(d.stage, 'settled');
+    assert.equal(drive(b.H, {errorMs: 520}, t + 9500, t + 60000), null, 'never amplified into another attempt');
+  });
+
+  await check('V13108G-03:measured-progress-keeps-the-bounded-retry-and-settles', () => {
+    const {H, notes} = host();
+    const t1 = drive(H, {errorMs: 600}, 2000, 12000);
+    H.accept(true, t1);
+    verify(H, t1, 2000, () => 250, 9000);
+    assert.equal(H.diagnostics().outcome, 'solo-source-landing-incomplete');
+    const inc = notes.find(n => n.kind === 'host-source-landing-incomplete');
+    assert.ok(inc && inc.beforeMs === 600 && inc.residualMs === 250 && inc.progressMs === 350, 'before/residual/progress recorded');
+    const t2 = drive(H, {errorMs: 250}, t1 + 9250, t1 + 40000);
+    assert.ok(t2 !== null && t2 - t1 >= 12000, 'a second bounded attempt after the retry wait');
+    H.accept(true, t2);
+    verify(H, t2, 2000, () => 40, 6000);
+    assert.equal(H.diagnostics().stage, 'settled');
+    assert.equal(H.diagnostics().attempts, 2);
+  });
+
+  await check('V13108G-04:no-valid-resumed-window-is-never-judged-or-retried', () => {
+    const {H, notes} = host();
+    const t = drive(H, {errorMs: 400}, 2000, 12000);
+    H.accept(true, t);
+    verify(H, t, 17000, () => 400, 17000);
+    assert.equal(H.diagnostics().outcome, 'solo-source-unverified');
+    assert.ok(notes.some(n => n.kind === 'host-source-backoff' && n.reason === 'no-resumed-window'));
+    assert.equal(drive(H, {errorMs: 400}, t + 17500, t + 60000), null);
+  });
+
+  await check('V13108G-05:mirror-contradiction-holds-host-source-until-coherent', () => {
+    const {H, notes} = host();
+    const contradiction = {driftMs: -1342, ageMs: 200};
+    assert.equal(drive(H, {errorMs: 400, contradiction}, 0, 15000), null, 'sourcePhase +19 ms vs mirror -1.3 s: do not act');
+    assert.equal(H.diagnostics().outcome, 'solo-source-contradicted');
+    assert.equal(notes.filter(n => n.kind === 'host-source-contradicted').length, 1, 'reported once per episode');
+    assert.equal(notes[0].mirrorDriftMs, -1342); assert.equal(notes[0].sourcePhaseMs, 19);
+    const t = drive(H, {errorMs: 400}, 15250, 30000);
+    assert.ok(t !== null && t - 15250 >= 3200, 'recovers on fresh dwell once the evidence is coherent');
+  });
+
+  await check('V13108G-06:mirror-gate-exposes-a-held-large-disagreement-and-its-sample-age', () => {
+    let perf = 10000, wall = 1_700_000_000_000; const notes = [];
+    const ctx = {window: {watchFusionRoomSyncLog: {note: (kind, d) => notes.push({kind, ...d})}}, performance: {now: () => perf}, Date: {now: () => wall}, Math, Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'), ctx);
+    const G = ctx.window.WatchFusionMirrorConvergenceGate;
+    assert.equal(typeof G.contradicted, 'function', 'no contradiction signal');
+    const plan = drift => ({publish: true, reason: 'drift', drift});
+    assert.equal(G.defer(plan(-1.342), {sampledAt: wall - 120, currentTime: 3.7}, 'p'), true);
+    assert.deepEqual({...G.contradicted()}, {driftMs: -1342, ageMs: 0});
+    assert.equal(notes[0].sampleAgeMs, 120); assert.equal(notes[0].reason, 'isolated-sample');
+    perf += 4100; wall += 4100;
+    assert.equal(G.contradicted(), null, 'clears once no disagreement is seen for 4 s');
+    let current = 10, published = false;
+    for (let i = 0; i < 8 && !published; i++) { perf += 300; wall += 300; current += .3; published = G.defer(plan(-.9), {sampledAt: wall, currentTime: current}, 'p') === false; }
+    assert.ok(published, 'a confirmed, progressing disagreement still re-anchors the room');
+    assert.equal(G.contradicted(), null, 'a publish resolves it');
+  });
+
+  await check('V13108G-06B:fresh-advancing-source-samples-clear-an-isolated-mirror-outlier', () => {
+    let now = 10000;
+    const c = {sourcePhaseMs:-41};
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>true}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    assert.equal(gate.defer({publish:true,reason:'drift',drift:-1.18},{sampledAt:now,currentTime:30},'p'),true);
+    assert.ok(gate.contradicted());
+    const steady={publish:false,reason:'steady',drift:-.041};
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31,rate:1},'p');
+    assert.ok(gate.contradicted(),'a single sample cannot clear the veto');
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31,rate:1},'p');
+    assert.ok(gate.contradicted(),'a frozen sample cannot clear the veto');
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31.2,rate:1},'p');
+    assert.equal(gate.contradicted(),null);
+  });
+
+  await check('V13108G-06C:large-automatic-mirror-jumps-need-fresh-moving-source-confirmation', () => {
+    let now = 10000, fresh = true;
+    const c = {sourcePhaseMs:-150};
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>fresh}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    const plan={publish:true,reason:'drift',drift:-3.7};
+    for(let i=0;i<=4;i++){
+      now+=300;
+      assert.equal(gate.defer(plan,{sampledAt:now,currentTime:100+i*.3},'p'),true);
+    }
+    assert.ok(gate.contradicted());
+    fresh=false;
+    now+=300;
+    assert.equal(gate.defer(plan,{sampledAt:now,currentTime:101.5},'p'),false,
+      'a confirmed moving jump can publish after the old reference expires');
+    assert.equal(gate.defer({...plan,reason:'state'},{sampledAt:now,currentTime:101.5},'p'),false);
+  });
+
+  await check('V13108G-06D:two advancing source samples repair a stale mirror baseline without publishing', () => {
+    let now = 10_000;
+    const c = {segment:3, sourcePhaseMs:4, phaseMs:4, anchorAt:now, anchorPositionMs:30_000, rate:1};
+    const notes = [];
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>true},
+      watchFusionRoomSyncLog:{note:(kind, detail)=>notes.push({kind, ...detail})}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    const plan={publish:true,reason:'drift',drift:1.05};
+    const sample=offset=>({pageUrl:'p',sampledAt:now,currentTime:30.004+(now-10_000)/1000+offset,rate:1});
+    assert.equal(gate.defer(plan,sample(-1),'p'),true);
+    assert.equal(typeof gate.rebase, 'function');
+    now+=250;
+    assert.equal(gate.rebase(plan,sample(-1),'p'),false,'advancing but off-source');
+    assert.ok(gate.contradicted());
+    assert.equal(gate.rebase(plan,sample(0),'p'),false,'one coherent reading');
+    now+=250;
+    c.segment++;
+    assert.equal(gate.rebase(plan,sample(0),'p'),false,'evidence cannot cross a segment');
+    now+=250;
+    assert.equal(gate.rebase(plan,sample(0),'p'),true);
+    assert.equal(gate.contradicted(),null);
+    assert.equal(gate.diagnostics().published,0);
+    assert.equal(notes.filter(e=>e.kind==='mirror-anchor-rebased').length,1);
+  });
+
+  await check('V13108G-07:rejoin-probe-measures-commanded-landed-and-late-release', () => {
+    assert.ok(exists('public/client/rejoin-probe.js'), 'rejoin-probe.js missing');
+    let now = 0, wall = 0, playerPos = 100, playing = true, timers = [];
+    const ctx = {Math, Number, JSON, console, performance: {now: () => now}};
+    ctx.globalThis = ctx; ctx.window = ctx;
+    ctx.setTimeout = (fn, ms) => { timers.push({at: now + ms, fn}); return timers.length; }; ctx.clearTimeout = () => {};
+    ctx.localStorage = {getItem: () => null, setItem() {}};
+    // Match the app's script order in this isolated deterministic VM.
+    vm.runInNewContext(read('public/client/viewer-release-evidence.js'), ctx);
+    vm.runInNewContext(read('public/client/viewer-timing-math.js'), ctx);
+    vm.runInNewContext(read('public/client/viewer-sync-arbiter.js'), ctx);
+    vm.runInNewContext(read('public/client/rejoin-probe.js'), ctx);
+    const A = ctx.WatchFusionViewerSyncArbiter.createViewerSyncArbiter({timers: {setTimeout: ctx.setTimeout, clearTimeout: ctx.clearTimeout}});
+    ctx.watchFusionViewerArbiter = A;
+    const target = at => 100.5 + at / 1000; // the room is 500 ms ahead of the laptop
+    const raw = {baseRate: 1, now: () => now, target: () => target(now), current: () => playerPos, state: () => playing ? 1 : 2,
+      availableRates: () => [1], buffered: () => true, referenceTrusted: () => true, referenceUncertaintyMs: () => 10,
+      seek: pos => { playerPos = pos - .4; }, pause: () => { playing = false; }, play: () => { playing = true; }, rate() {}};
+    const io = ctx.WatchFusionRejoinProbe.wrap(raw);
+    A.tick('s', now, io);
+    assert.equal(A.rejoinNow(now, io, 'manual'), true, 'fixture: fixed-rate rejoin');
+    for (let i = 0; i < 40 && !playing; i++) {
+      now += 100;
+      const due = timers.filter(x => x.at + 300 <= now); timers = timers.filter(x => x.at + 300 > now); // timers fire 300 ms late
+      due.forEach(x => x.fn());
+      // Once the release is scheduled, model a throttled page: no tick backstop, only the late timer.
+      if (!playing && A.snapshot().reason !== 'rejoin-scheduled-release') A.tick('s', now, io);
+    }
+    const p = ctx.WatchFusionRejoinProbe.last();
+    assert.ok(p, 'no landing record');
+    assert.ok(Math.abs(p.leadMs - 1500) <= 1, 'commanded lead'); assert.equal(p.landedShortMs, 400, 'keyframe snap');
+    assert.ok(p.releaseErrMs <= -250 && p.releaseErrMs >= -400, 'late timer is visible: ' + p.releaseErrMs);
+    ctx.WatchFusionRejoinProbe.resumed(120, now + 2000);
+    assert.equal(ctx.WatchFusionRejoinProbe.last().startLatencyMs, p.releaseLeadMs + 120);
+  });
+
+  await check('V13108G-08:zero-converge-pulse-exports-error-not-position', () => {
+    const src = read('public/client/zero-converge.js');
+    assert.match(src, /zero-converge-pulse', \{errorMs: Math\.round\(m\)/);
+    assert.doesNotMatch(src, /zero-converge-pulse', \{positionMs/);
+  });
+
+  await check('V13108G-09:a-correction-opens-a-capped-denser-trace-burst', () => {
+    const element = () => ({value: '', textContent: '', open: false, addEventListener() {}, focus() {}, select() {}});
+    const nodes = {syncRoomLog: element(), syncRoomLogText: element(), syncRoomLogCopy: element(), syncRoomLogClear: element(), syncRoomLogCount: element()};
+    let now = 100000;
+    const ctx = {document: {getElementById: id => nodes[id] || null}, navigator: {}, performance: {now: () => now},
+      roomId: 'room-1', session: {memberId: 'h'}, isHost: () => true,
+      state: {presentationEpoch: 1, playoutSegment: 6, hostId: 'h', playback: {rate: 1}, members: [{id: 'h', name: 'Laptop-Side'}]},
+      estimatedServerNow: () => now, setTimeout, console, Date, JSON, Math, Object, Number, Array, String, RegExp};
+    ctx.window = ctx;
+    vm.runInNewContext(read('public/client/sync-room-log.js'), ctx);
+    const log = ctx.watchFusionRoomSyncLog;
+    const peer = () => ({member: 'h', sampledAt: now - 10, positionMs: 60000 - 300, roomPositionMs: 60000, targetPositionMs: 60000,
+      ready: true, playing: true, buffering: false, rttMs: 10, rate: 1, audible: true});
+    log.observe([peer()], {reference: 'linked-tab', source: 'live'});
+    log.note('host-source-rejoin-accepted', {attempts: 1});
+    for (let i = 0; i < 20; i++) { now += 600; log.observe([peer()], {reference: 'linked-tab', source: 'live'}); }
+    const shots = JSON.parse(log.export()).snapshots.length;
+    assert.ok(shots >= 10 && shots <= 13, 'about 6 s of 500 ms snapshots, then normal cadence: ' + shots);
+    log.note('rejoin-landing', {leadMs: 1500, landedShortMs: 400, releaseLeadMs: 180, releaseErrMs: -70, holdMs: 2600});
+    const ev = JSON.parse(log.export()).events.at(-1);
+    assert.deepEqual([ev.kind, ev.leadMs, ev.landedShortMs, ev.releaseErrMs], ['rejoin-landing', 1500, 400, -70]);
+  });
+
+  await check('V13108G-10:wiring-probe-and-contradiction-reach-the-live-path', () => {
+    const ps = read('public/playback-sync.js'), sf = read('src/server/static-files.js');
+    assert.match(ps, /WatchFusionRejoinProbe\?\.wrap\?\.\(raw\) \?\? raw\)\(arbiterIo\(baseRate, duration\)\)/);
+    assert.match(ps, /contradiction:window\.WatchFusionMirrorConvergenceGate\?\.contradicted\?\.\(\)/);
+    assert.ok(sf.indexOf("'client/rejoin-probe.js'") > 0 && sf.indexOf("'client/rejoin-probe.js'") < sf.indexOf("'playback-sync.js'"));
+  });
+}

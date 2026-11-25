@@ -42,7 +42,13 @@ test.describe('WatchFusion Multi-Client Suite', () => {
     await expect(page.locator('#roomPill')).toContainText('901');
     await expect(page.locator('#members')).toContainText('HostSmoke');
     await expect(page.locator('#members')).toContainText('★');
-    await expect(page.locator('#leaveRoomBtn')).toBeVisible();
+    const roomTools = page.locator('#roomIdleOptions');
+    await expect(roomTools).toBeVisible();
+    await roomTools.locator('summary').click();
+    const leaveAction = roomTools.locator('[data-room-idle-action="leaveRoomBtn"]');
+    await expect(leaveAction).toBeVisible();
+    await leaveAction.click();
+    await expect(page.locator('#partyPanel')).toBeHidden();
   });
 
   test('Embedded room creation preserves EveOS mode and reveals the party UI', async ({ page }) => {

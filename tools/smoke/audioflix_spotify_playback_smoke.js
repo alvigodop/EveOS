@@ -3,7 +3,6 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -14,29 +13,24 @@ const SPOTIFY_PLAYBACK = path.join(ROOT, 'js', 'modules', 'features', 'audioflix
 const moduleUrl = (name) => `file:///${path.join(ROOT, 'js', 'modules', 'features', 'audioflix', name).replace(/\\/g, '/')}`;
 const assert = (condition, message) => { if (!condition) throw new Error(`ASSERT FAILED: ${message}`); };
 
-function runChild(runtime, relative) {
-    const command = runtime === 'python'
-        ? (process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'))
-        : process.execPath;
-    const result = spawnSync(command, [path.join(ROOT, relative)], { cwd: ROOT, stdio: 'inherit', env: process.env });
-    if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(`${relative} failed with exit ${result.status}`);
-}
-
 (async () => {
     const uiMain = fs.readFileSync(UI_MAIN, 'utf8');
     const queueCompletion = fs.readFileSync(QUEUE_COMPLETION, 'utf8');
     const spotifyVolume = fs.readFileSync(SPOTIFY_VOLUME, 'utf8');
     const spotifyPlayback = fs.readFileSync(SPOTIFY_PLAYBACK, 'utf8');
-    assert(uiMain.includes("if (status === 'Ended') completeQueue(e.detail)")
+    assert(uiMain.includes("if ((status === 'Ended' || (e.detail?.error === true && e.detail?.terminal === true)) && !(e.detail?.remoteManaged && window.EveAudioflixSpotifyQueueHandoff?.isDelegated?.())) {")
+        && uiMain.includes("if (queueStartPending === queueRunId) { if (queueStartActive === queueRunId) queuedTerminal = e.detail; } else completeQueue(e.detail); }")
+        && uiMain.includes("const runId = ++queueRunId; queueStartPending = runId; queuedTerminal = null;")
+        && uiMain.includes("if (didStart && terminal && String(terminal.item?.id ?? '') === String(activeMusicQueue.items[activeMusicQueue.currentIndex])) completeQueue(terminal);")
         && uiMain.includes('window.EveAudioflixQueueCompletion.createRuntime({')
         && uiMain.includes('playIndex: (index) => playQueueIndex(index)')
         && uiMain.includes('complete: completeQueue } = queueRuntime')
         && queueCompletion.includes("detail.status !== 'Ended'")
         && queueCompletion.includes('const complete = create({')
-        && queueCompletion.includes('await (latest.repeatOne ? restart() : advance())')
+        && queueCompletion.includes('const terminalFailure = detail.error === true && detail.terminal === true;')
+        && queueCompletion.includes('await (terminalFailure ? advance() : latest.repeatOne ? restart() : advance())')
         && queueCompletion.includes('advance: () => playIndex(queue().currentIndex + 1)'),
-        'frontend queue remains the sole owner that consumes Spotify Ended and advances');
+        'frontend owns nondelegated Ended; delegated Spotify completion remains broker-owned');
     assert(!spotifyVolume.includes('getDisplayMedia') && !spotifyVolume.includes('createMediaStreamSource'),
         'Spotify volume never regresses to tab/screen capture');
     assert(!spotifyPlayback.includes('paused unexpectedly. Recovering')
@@ -209,11 +203,6 @@ function runChild(runtime, relative) {
         await browser.close();
         fs.rmSync(fixture, { force: true });
     }
-
-    runChild('node', 'tools/smoke/audioflix_spotify_browser_contract_smoke.js');
-    runChild('node', 'tools/smoke/audioflix_spotify_browser_runtime_smoke.js');
-    runChild('python', 'tools/smoke/audioflix_spotify_browser_python_smoke.py');
-    runChild('node', 'tools/smoke/audioflix_volume_managed_smoke.js');
 
     console.log('AUDIOFLIX_SPOTIFY_PLAYBACK_SMOKE_OK');
 })().catch((error) => {

@@ -36,6 +36,10 @@ function main() {
 const packageSource = fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8');
 const pkg = JSON.parse(packageSource);
 const scripts = pkg.scripts || {};
+const qualificationManifest = JSON.parse(fs.readFileSync(
+    path.join(ROOT, 'tools', 'qualification', 'eveos_qualification_manifest.v3.json'),
+    'utf8'
+));
 const profileSource = fs.readFileSync(path.join(__dirname, 'eveos_profile_runner.mjs'), 'utf8');
 const handoffSource = fs.readFileSync(path.join(__dirname, 'eveos_chat_handoff.mjs'), 'utf8');
 const { zeroBacklogViolation } = require('../audit/smoke-registry-audit.js');
@@ -44,9 +48,19 @@ const baseline = JSON.parse(fs.readFileSync(
     'utf8'
 ));
 
-const guardrailScript = String(scripts['test:guardrails'] || '');
+const guardrailScript = String(scripts['test:guardrails:shared'] || '');
+const audioflixGuardrails = ['smoke:spotify-mode-handoff-regression', 'smoke:audioflix-mode-requirements'];
+requireTrue(
+    scripts['test:guardrails'] === ['test:guardrails:shared', ...audioflixGuardrails].map(name => `npm run --silent ${name}`).join(' && ') &&
+        audioflixGuardrails.every(name => scripts[name] && !guardrailScript.includes(name)),
+    'full guardrails must retain Audioflix regressions while scoped guardrails remain domain neutral'
+);
 for (const required of [
+    'smoke:codex-exec-bootstrap-contract',
+    'smoke:tlo-autorecovery-contract',
     'smoke:qualification-guardrails-contract',
+    'smoke:engineering-safeguards-contract',
+    'smoke:timed-qualification-contract',
     'audit:asset-versions',
     'audit:smoke-registry',
     'smoke:coverage-map',
@@ -58,15 +72,62 @@ for (const required of [
         `test:guardrails lost required structural check: ${required}`
     );
 }
+requireTrue(
+    scripts['smoke:codex-exec-bootstrap-contract'] ===
+        'python -B tools/qualification/codex_exec_bootstrap_test.py',
+    'Codex exec bootstrap deterministic contract entrypoint drifted'
+);
+requireTrue(
+    scripts['qualify:codex-exec-bootstrap-native'] ===
+        'python -B tools/qualification/codex_exec_bootstrap_test.py --native',
+    'Codex exec bootstrap native preflight entrypoint drifted'
+);
+requireTrue(
+    scripts['smoke:tlo-autorecovery-contract'] ===
+        'python -B tools/qualification/tlo_handoff_rehearsal.py --self-test && python -B tools/qualification/tlo_autorecover_policy_test.py && python -B tools/qualification/tlo_recovery_receipt_test.py && python -B tools/qualification/eve_run_test.py && python -B tools/qualification/tlo_preserved_files_test.py',
+    'TLO autorecovery deterministic contract entrypoint drifted'
+);
+requireTrue(
+    scripts['smoke:engineering-safeguards-contract'] ===
+        'python -B tools/qualification/eveos_engineering_safeguards.py --self-test',
+    'engineering safeguards deterministic contract entrypoint drifted'
+);
+requireTrue(
+    scripts['smoke:timed-qualification-contract'] ===
+        'python -B tools/qualification/eveos_timed_qualification.py --self-test && python -B tools/qualification/test_eveos_timed_qualification.py -q',
+    'timed qualification scheduler contract entrypoint drifted'
+);
+for (const [name, profile] of Object.entries({
+    'qualify:fast:timed': 'fast', 'qualify:affected:timed': 'affected',
+    'qualify:integration:timed': 'integration', 'verify:timed': 'verify'
+})) {
+    requireTrue(
+        scripts[name] === `python -B tools/qualification/eveos_timed_qualification.py --profile ${profile}`,
+        `timed qualification profile entrypoint drifted: ${name}`
+    );
+}
 
 const verify = String(scripts.verify || '');
 requireTrue(
-    verify.startsWith('npm run test:guardrails && '),
-    'verify must run structural guardrails before build/write steps'
+    verify === 'python -B tools/qualification/eveos_timed_qualification.py --profile verify',
+    'verify must use the authoritative Qualification Engine v3 release profile'
+);
+const legacyVerify = String(scripts['verify:legacy'] || '');
+requireTrue(
+    legacyVerify.startsWith('npm run test:guardrails && ') &&
+        legacyVerify.indexOf('npm run test:guardrails') < legacyVerify.indexOf('npm run build:asset-versions'),
+    'legacy comparison oracle must preserve guardrails before build/write steps'
 );
 requireTrue(
-    verify.indexOf('npm run test:guardrails') < verify.indexOf('npm run build:asset-versions'),
-    'verify can mutate asset versions before proving they are already synchronized'
+    qualificationManifest.schema === 'eveos.qualification-manifest.v3' &&
+        qualificationManifest.gates.length === 41 &&
+        qualificationManifest.legacyScript === 'verify:legacy',
+    'Qualification Engine v3 manifest identity or release inventory drifted'
+);
+requireTrue(
+    scripts['smoke:capability-surfaces:release'] ===
+        scripts['smoke:capability-surfaces'].replace(' && npm run --silent smoke:coverage-map', ''),
+    'release capability surface must differ only by the guardrail-owned coverage-map duplicate'
 );
 
 function readProfileScripts(profileName) {
@@ -118,7 +179,7 @@ requireTrue(chainIncludes(scripts['smoke:control-plane'], 'smoke:service-reload'
     'control-plane smoke lost its registered service reload leaf');
 for (const name of ['smoke:control-plane', 'smoke:selective-reload-browser']) {
     requireTrue(profiles.deep.includes(name), `deep lost required selective reload check: ${name}`);
-    requireTrue(chainIncludes(verify, name), `verify lost required selective reload check: ${name}`);
+    requireTrue(chainIncludes(legacyVerify, name), `legacy parity oracle lost required selective reload check: ${name}`);
 }
 requireTrue(
     handoffSource.includes("if (profile === 'none' && explicit.length) plan.push('test:guardrails');"),

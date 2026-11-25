@@ -68,7 +68,8 @@
   const id = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const send = (payload) => {
     if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-    socket.send(JSON.stringify(payload));
+    const authorized = globalThis.BrowserAiBridgeMachineHumanGate?.authorize?.(payload) || payload;
+    socket.send(JSON.stringify(authorized));
     return true;
   };
   const short = (value, length = 24) => {
@@ -262,7 +263,8 @@
     socket = new WebSocket(`${scheme}://${location.host}/ws`);
     socket.addEventListener('open', () => {
       phase = 'connected'; available = false; watchedContext = '';
-      send({ type: 'hello', role: 'ui', clientKind: 'machine-request-view' });
+      send({ type: 'hello', role: 'ui', clientKind: 'machine-request-view',
+        uiHolderId: globalThis.BrowserAiBridgeUiSocket?.uiHolderId });
       setTimeout(watchRoom, 50); render();
     });
     socket.addEventListener('message', (event) => { try { handle(JSON.parse(event.data)); } catch {} });

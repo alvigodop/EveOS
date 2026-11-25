@@ -44,6 +44,10 @@
   animation: none;
 }
 #dexModePanel[data-human-input="enabled"] .dex-control-banner { border-color: #587d7f; }
+#dexModePanel[data-human-input="denied"] .dex-control-banner { border-color: #8d5560; }
+#dexModePanel[data-human-input="expired"] .dex-control-banner { border-color: #8a7447; }
+#dexModePanel[data-human-input="denied"] .dex-control-label { color: #ff9fac; }
+#dexModePanel[data-human-input="expired"] .dex-control-label { color: #e7c77e; }
 #dexModePanel[data-human-input="disabled"] .dex-card :is(button, input, select):disabled,
 #dexModePanel[data-human-input="disabled"] .dex-sidebar-head button:disabled,
 #dexModePanel[data-human-input="disabled"] .dex-relay-actions button:disabled {
@@ -82,6 +86,7 @@
   gap: 8px;
 }
 .dex-sidebar h2, .dex-card h2 { margin: 0; font-size: 15px; }
+.dex-sidebar > summary, .dex-card > summary { font-size: 15px; }
 .dex-room-list { display: grid; gap: 7px; margin-top: 12px; }
 .dex-room-item {
   width: 100%;
@@ -218,4 +223,46 @@
   .dex-settings-grid, .dex-member-builder { grid-template-columns: 1fr; }
   .dex-number { max-width: none; }
   .dex-message { max-width: 96%; }
+}
+
+/* Engineering receipts have a separate semantic status from generic system alerts. */
+.dex-message.engineering-success {
+  background: rgba(15, 48, 39, .75);
+  border-color: #347760;
+  color: #d7efe5;
+}
+.dex-message.engineering-warning {
+  background: rgba(55, 43, 19, .72);
+  border-color: #96804c;
+  color: #f2e5ba;
+}
+.dex-message.engineering-danger {
+  background: rgba(65, 29, 34, .78);
+  border-color: #a65c67;
+  color: #f7d6db;
+}
+.dex-message.engineering-neutral {
+  background: rgba(19, 39, 67, .76);
+  border-color: #416b9f;
+  color: #dceaff;
+}
+.dex-notice-label {
+  display: inline-flex; margin: 0 0 8px; padding: 3px 8px; border: 1px solid currentColor;
+  border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+}
+.dex-result-summary {
+  display: grid; grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
+  gap: 5px 10px; margin: 10px 0 0; white-space: normal;
+}
+.dex-result-summary dt { color: #9fb0c5; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.dex-result-summary dd { margin: 0; }
+.engineering-receipt { margin-top: 9px; font-size: 12px; }
+.engineering-receipt summary { cursor: pointer; opacity: .85; }
+.dex-copy-technical {
+  margin: 8px 0 0; padding: 5px 8px; border: 1px solid currentColor; border-radius: 7px;
+  background: transparent; color: inherit; cursor: pointer; font: inherit;
+}
+.engineering-receipt pre {
+  max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 11px; color: inherit; opacity: .75;
 }

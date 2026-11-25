@@ -1,0 +1,41 @@
+/* V8: compositional sizing, not a global zoom hack. Keep existing colors and media proportions. */
+html.eveos-embedded .watch-shell.solo-idle,
+html.eveos-detached .watch-shell.solo-idle,
+html.eveos-embedded .watch-shell.room-idle,
+html.eveos-detached .watch-shell.room-idle {
+  display: block; min-height: 0;
+  height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+html.eveos-embedded .watch-shell.room-idle .media-status-row,
+html.eveos-detached .watch-shell.room-idle .media-status-row,
+html.eveos-embedded .watch-shell.solo-idle .media-status-row,
+html.eveos-detached .watch-shell.solo-idle .media-status-row { display: none !important; }
+html.eveos-embedded .maincol, html.eveos-detached .maincol { min-width: 0; min-height: 0; overflow: hidden; }
+html.eveos-embedded .watch-shell,
+html.eveos-detached .watch-shell { box-sizing: border-box; max-width: 100%; }
+html:is(.eveos-embedded, .eveos-detached).watchfusion-room-idle.watchfusion-party-bottom .grid {
+  grid-template-rows: minmax(0, 1fr) var(--idle-room-divider, 8px) var(--watchfusion-party-height, 300px);
+  align-content: stretch;
+}
+@media (max-width: 650px) { html { --idle-room-divider: 10px; } }
+.room-idle-actions { margin: 6px; font-size: 11px; }
+.room-idle-actions > summary { cursor: pointer; width: fit-content; padding: 5px 8px; border: 1px solid var(--border-subtle); border-radius: 7px; }
+.room-idle-actions > div { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.room-idle-actions button { min-height: 28px; padding: 4px 7px; font-size: 11px; }
+/* Only a small Watch Party pane is intended to stay anchored while media scrolls. */
+html:is(.eveos-embedded, .eveos-detached) :is(.media-status-row, .watch-sync-center, .media-status-row > button) { position: static; }
+html:is(.eveos-embedded, .eveos-detached) .watch-shell:is(.room-idle, .solo-idle) .find-media-panel { max-height: none; }
+@media (max-width: 670px), (max-height: 680px) {
+  html.eveos-embedded .watch-shell-head, html.eveos-detached .watch-shell-head { padding: 4px 6px; }
+  html.eveos-embedded .media-status-row, html.eveos-detached .media-status-row { gap: 4px; padding: 5px; }
+  html.eveos-embedded .media-status-row > button, html.eveos-detached .media-status-row > button { min-height: 27px; padding: 4px 6px; font-size: 10px; }
+  html.eveos-embedded .source-tab, html.eveos-detached .source-tab { min-height: 28px; padding: 4px 3px; font-size: 10px; }
+  html.eveos-embedded .find-media-panel, html.eveos-detached .find-media-panel { padding: 8px; }
+  html.eveos-embedded .find-media-panel button, html.eveos-detached .find-media-panel button { min-height: 29px; padding: 5px 7px; font-size: 11px; }
+  html.eveos-embedded .topbar, html.eveos-detached .topbar { min-height: 32px; padding: 3px 6px; }
+  html.eveos-embedded #partyPanel .sidehead, html.eveos-detached #partyPanel .sidehead { gap: 4px; }
+  html.eveos-embedded #partyPanel .sidehead h2, html.eveos-detached #partyPanel .sidehead h2 { font-size: 12px; }
+  html.eveos-embedded .watch-sync-center[open], html.eveos-detached .watch-sync-center[open] { margin: 4px 5px 5px; max-width: calc(100% - 10px); }
+  html.eveos-embedded .sync-center-body, html.eveos-detached .sync-center-body { padding: 3px 6px 7px; }
+  html.eveos-embedded .sync-peer-card, html.eveos-detached .sync-peer-card { padding: 6px 7px; }
+}

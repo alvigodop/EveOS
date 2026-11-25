@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { startServer } from '../helpers/server-harness.js';
-import { request, createRoom, joinRoom, sendCommand } from '../helpers/http-client.js';
+import { request, createRoom, joinRoom, leaveRoom, sendCommand } from '../helpers/http-client.js';
 
 async function client(base, credentials) {
   const socket = new WebSocket(base.replace('http', 'ws') + '/live-ws');
@@ -39,6 +39,9 @@ export async function runLiveSmokes() {
       assert.ok(!JSON.stringify(attach.json.state).includes(live.publisherToken));
       assert.ok(!JSON.stringify(attach.json.state).includes(live.viewerToken));
       const publisher = await connect({ id: live.id, role: 'publisher', token: live.publisherToken }); await publisher.take('ready');
+      const sentAt = Date.now(); publisher.send({type:'ping',sentAt});
+      const clock = await publisher.take('pong');
+      assert.equal(clock.sentAt,sentAt); assert.ok(clock.receivedAt > 0 && clock.serverTime >= clock.receivedAt);
       const viewer = await connect({ id: live.id, roomId: 'LIVEA', memberId: guest.memberId }); await viewer.take('ready');
       const joined = await publisher.take('viewer');
       publisher.send({ type: 'signal', peer: joined.peer, signal: { description: { type: 'offer', sdp: 'test-offer' } } });
@@ -48,6 +51,10 @@ export async function runLiveSmokes() {
       publisher.send({ type: 'metadata', metadata: { title: 'Song', queue: [{ id: '1', title: 'Track', localPath: 'private' }], localPath: 'private' } });
       await viewer.take('metadata');
       const meta = await viewer.take('metadata'); assert.equal(meta.metadata.title, 'Song'); assert.ok(!JSON.stringify(meta).includes('private'));
+      for (const volume of [null, .37, 0]) {
+        publisher.send({type:'metadata', metadata:{pageUrl:'https://www.youtube.com/watch?v=M7lc1UVf-VE',volume}});
+        assert.equal((await viewer.take('metadata')).metadata.volume, volume);
+      }
       viewer.messages.length = 0; viewer.send({ type: 'control', action: 'next' });
       assert.match((await viewer.take('status')).status, /Only the host/);
       const controller = await connect({ id: live.id, roomId: 'LIVEA', memberId: host.memberId }); await controller.take('ready');
@@ -69,6 +76,54 @@ export async function runLiveSmokes() {
       assert.match(html.body, /id="linkTabBtn"/); assert.match(html.body, /id="linkAudioflixBtn"/);
       assert.match(html.body, /id="unloadMediaBtn"/); assert.match(html.body, /id="livePairClose"/);
       assert.match(html.body, /id="livePairFolder"/); assert.doesNotMatch(html.body, /live-help\.html/);
+    });
+    await check('LIVE-03:linked-source-ownership-survives-host-handoff-and-rejoin', async () => {
+      const roomId = 'LINKEDLAN';
+      const accountId = 'synthetic-laptop';
+      await createRoom(base, roomId);
+      const laptop = (await joinRoom(base, roomId, { name: 'Laptop', accountId })).json.session;
+      const tv = (await joinRoom(base, roomId, { name: 'TV' })).json.session;
+      const live = (await post('/api/live', {})).json;
+      const linkedSource = { id: live.id, token: live.publisherToken };
+      const bind = { publisherToken: live.publisherToken, roomId, mode: 'linked-tab' };
+      assert.equal((await post(`/api/live/${live.id}/room`, bind, tv.memberId)).status, 403);
+      const bound = await post(`/api/live/${live.id}/room`, bind, laptop.memberId);
+      assert.equal(bound.status, 200);
+      assert.equal(bound.json.state.linkedSourceActive, true);
+      assert.ok(!JSON.stringify(bound.json.state).includes(live.publisherToken));
+      const handoff = await sendCommand(base, roomId, laptop.memberId, { type: 'transfer-host', targetMemberId: tv.publicId });
+      assert.equal(handoff.status, 200);
+      assert.equal(handoff.json.state.hostId, tv.publicId);
+
+      const resumed = await joinRoom(base, roomId, { name: 'Laptop', accountId, memberId: laptop.memberId });
+      assert.equal(resumed.json.state.hostId, tv.publicId);
+      assert.equal(resumed.json.state.revision, handoff.json.state.revision);
+      const poll = memberId => request(base, `/api/rooms/${roomId}/state`, { headers: { 'x-member-id': memberId } });
+      assert.equal((await poll(tv.publicId)).status, 401);
+      assert.equal((await poll(laptop.memberId)).json.state.revision, handoff.json.state.revision);
+      assert.equal((await sendCommand(base, roomId, tv.publicId, { type: 'play' })).status, 401);
+      assert.equal((await sendCommand(base, roomId, laptop.memberId, { type: 'transfer-host', targetMemberId: laptop.publicId })).status, 403);
+      assert.equal((await sendCommand(base, roomId, laptop.memberId, { type: 'delete-room' })).status, 403);
+      const reload = await post(`/api/rooms/${roomId}/leave?defer=1`, {}, tv.memberId);
+      assert.equal(reload.status, 202);
+      const resumedTv = await joinRoom(base, roomId, { name: 'TV', accountId: tv.accountId, memberId: tv.memberId });
+      assert.equal(resumedTv.json.state.hostId, tv.publicId);
+      assert.equal(resumedTv.json.state.revision, handoff.json.state.revision);
+
+      const source = { type: 'source', input: 'M7lc1UVf-VE', linkedSource };
+      assert.equal((await sendCommand(base, roomId, tv.memberId, source)).status, 403);
+      assert.equal((await sendCommand(base, roomId, laptop.memberId, source)).status, 200);
+      const mirror = { type: 'mirror', position: 30, paused: false, linkedSource };
+      assert.equal((await sendCommand(base, roomId, laptop.memberId, { ...mirror, linkedSource: { id: live.id, token: 'wrong' } })).status, 403);
+      const mirrored = await sendCommand(base, roomId, laptop.memberId, mirror);
+      assert.equal(mirrored.status, 200);
+      assert.equal(mirrored.json.state.playback.paused, false);
+      assert.equal(mirrored.json.state.hostId, tv.publicId);
+      assert.equal((await post(`/api/live/${live.id}/stop`, live)).status, 200);
+      assert.equal((await sendCommand(base, roomId, laptop.memberId, mirror)).status, 403);
+      assert.equal((await poll(tv.memberId)).json.state.linkedSourceActive, false);
+      assert.equal((await leaveRoom(base, roomId, tv.memberId)).status, 200);
+      assert.equal((await poll(laptop.memberId)).json.state.hostId, laptop.publicId);
     });
   } finally { for (const c of clients) c.socket.close(); await server.stop(); }
   return results;

@@ -2,10 +2,13 @@ const { randomUUID } = require('node:crypto');
 const protocol = require('../public/dex-protocol');
 const healthApi = require('../public/dex-provider-health');
 const failurePolicy = require('../public/dex-failure-policy');
-const stateApi = require('./server-scheduler-state'), controlReceiptApi = require('./provider-control-receipt'), doneWatchApi = require('../public/dex-done-watch');
+const stateApi = require('./server-scheduler-state'), controlReceiptApi = require('./provider-control-receipt'), doneWatchApi = require('../public/dex-done-watch'), capabilityApi = require('./agent-capability-context'), { buildAgentLiveContext, buildRelayCapabilityPrompt, readinessOnlyReply } = require('./agent-live-context');
 const { createServerSchedulerRecovery } = require('./server-scheduler-recovery');
 const recoveryMailbox = require('./recovery-mailbox'), promptSend = require('./prompt-send-recovery');
 const { directRoomSend } = require('./direct-room-send-policy');
+const schedulerTelemetry = require('./server-scheduler-telemetry'), finalControlEvidence = require('./server-final-control-evidence');
+const { createMemberTurnStarter } = require('./server-scheduler-member-turn');
+const { validateEngineeringProposal } = require('./engineering-proposal'), { validateEngineeringCompletion } = require('./engineering-completion');
 const { TURN_TIMEOUT_MS, TURN_IDLE_TIMEOUT_MS, TURN_ABSOLUTE_TIMEOUT_MS,
   activityFromTransport, createServerTurnLease } = require('./server-turn-lease');
 function createDexServerScheduler({
@@ -60,8 +63,7 @@ function createDexServerScheduler({
   }
   function markDispatched() {
     if (!current || current.dispatched) return;
-    const snapshot = load();
-    const room = stateApi.roomById(snapshot, current.roomId);
+    const snapshot = load(), room = stateApi.roomById(snapshot, current.roomId);
     if (room?.recovery && !room.recovery.dispatched) {
       room.recovery.dispatched = true;
       save(snapshot); current.dispatched = true;
@@ -116,23 +118,21 @@ function createDexServerScheduler({
   }
   async function routeCurrent() {
     if (!current) return false;
-    const snapshot = load();
-    const room = stateApi.roomById(snapshot, current.roomId);
-    const member = stateApi.memberById(room, current.memberId);
-    const source = stateApi.messageById(room, current.sourceMessageId);
+    const snapshot = load(), room = stateApi.roomById(snapshot, current.roomId), member = stateApi.memberById(room, current.memberId), source = stateApi.messageById(room, current.sourceMessageId);
     if (!room || !member || !source || !room.relay?.active) {
       clearCurrent();
       processSoon(0);
       return false;
     }
+    const capabilityContext = capabilityApi.resolve(source.text); current.capabilityContext = capabilityApi.publicContext(capabilityContext);
     current.prompt = protocol.buildRelayPrompt({
       room, member, recipient: member, sourceMessage: source,
       requestId: current.requestId, inboxMessageIds: current.inboxMessageIds || [],
-      providerHealth: healthApi.roomContext(room, getOnlineTargets() || [])
+      providerHealth: healthApi.roomContext(room, getOnlineTargets() || []), capabilityPrompt: buildRelayCapabilityPrompt({ room, member, capabilityPrompt: capabilityApi.promptText(capabilityContext), capabilityIds: capabilityContext.packs.map((pack) => pack.id) })
     }); if (room.recovery) { room.recovery.expectedPrompt = current.prompt; save(snapshot); }
     if (member.binding?.targetClassId === 'local-origin') {
       const target = await localTarget(member);
-      if (!target) return handleTurnError({ code: 'LOCAL_TARGET_NOT_FOUND', message: 'Local agent target is unavailable.' });
+      if (!target) return handleTurnError({ code: 'LOCAL_TARGET_NOT_FOUND', message: member.binding?.transport === 'search-monitor-workspace' ? 'Search Monitor workspace delivery target is unavailable; the local model may still be healthy, but this Dex turn cannot be delivered.' : 'Local agent target is unavailable.' });
       return dispatchDirect(target, 'local-origin', sendLocalPrompt);
     }
     if (member.binding?.targetClassId === 'app-origin') {
@@ -247,6 +247,8 @@ function createDexServerScheduler({
     processSoon(0);
     return { ok: true, roomId };
   }
+  const startMemberTurn = createMemberTurnStarter({ load, save, currentRoomId: () => current?.roomId || null,
+    maintenanceBusy, processSoon, now });
   function stopRelay({ roomId, reason = 'Stopped' } = {}) {
     const snapshot = load(), room = stateApi.roomById(snapshot, roomId);
     if (!room) return { ok: false, code: 'DEX_ROOM_NOT_FOUND', message: 'Dex room not found.' };
@@ -268,9 +270,7 @@ function createDexServerScheduler({
   }
   async function handleTurnError(msg = {}) {
     if (!current) return false;
-    const snapshot = load();
-    const room = stateApi.roomById(snapshot, current.roomId);
-    const member = stateApi.memberById(room, current.memberId);
+    const snapshot = load(), room = stateApi.roomById(snapshot, current.roomId), member = stateApi.memberById(room, current.memberId);
     const source = stateApi.messageById(room, current.sourceMessageId);
     if (!room || !member || !source) return false;
     const decision = failurePolicy.decision(msg.code, {
@@ -308,10 +308,12 @@ function createDexServerScheduler({
     const room = stateApi.roomById(snapshot, current.roomId);
     const member = stateApi.memberById(room, current.memberId);
     if (room) {
-      addMessage(room, {
+      const failed = addMessage(room, {
         senderKind: 'system', senderId: null,
         senderName: 'Dex', text: `${member?.name || 'Agent'}: ${message}`
       });
+      Object.assign(failed, { relayFailure: true,
+        sourceMessageId: current.sourceMessageId, turnRequestId: current.requestId });
       setStopped(room, stopReason);
       save(snapshot);
     }
@@ -319,13 +321,13 @@ function createDexServerScheduler({
     processSoon(0);
     return false;
   }
-  function completeTurn(text) {
+  function completeTurn(text, capabilityContext = null, transportEvidence = null) {
     if (!current) return false;
     const snapshot = load();
     const room = stateApi.roomById(snapshot, current.roomId);
     const member = stateApi.memberById(room, current.memberId);
     if (!room || !member) return false;
-    const parsed = protocol.parseAgentReply(text);
+    const finalized = finalControlEvidence.parse(text, transportEvidence), parsed = finalized.parsed;
     if (parsed.returnRequestId && parsed.returnRequestId !== current.requestId) return false;
     const repeated = protocol.isRepeatedReply(room.messages, parsed.text);
     const sourceMessage = stateApi.messageById(room, current.sourceMessageId);
@@ -334,16 +336,22 @@ function createDexServerScheduler({
       senderName: member.name, text: parsed.text || '(No textual response.)',
       contextOverride: parsed.contextOverride
     });
-    if (parsed.providerControlCommand && !directRoomSend(parsed.providerControlCommand)) controlReceiptApi.rememberIntent(room, { executorMember: member, sourceMessage, command: parsed.providerControlCommand, agentMessage: message, turnRequestId: current.requestId, at: now() });
+    if (capabilityContext && capabilityContext.digest !== current.capabilityContext?.digest) recordIncident({ code: 'AGENT_CAPABILITY_CONTEXT_MISMATCH', source: 'server-scheduler', roomId: room.id, memberId: member.id, requestId: current.requestId, evidence: { expected: current.capabilityContext?.digest || null, returned: capabilityContext.digest } }); if (current.capabilityContext?.packs?.length) message.capabilityContext = current.capabilityContext; if (sourceMessage?.engineeringIncident) { message.engineeringRawText = String(text || '').slice(0, 12000); message.engineeringProposal = validateEngineeringProposal(parsed.text, sourceMessage.engineeringIncident); }
+    const completion = sourceMessage?.engineeringVerification
+      ? validateEngineeringCompletion(parsed.text, sourceMessage.engineeringVerification, parsed.done) : null;
+    if (completion) message.engineeringCompletion = completion;
+    stateApi.extendBudget(room, parsed);
+    if (!sourceMessage?.engineeringIncident && parsed.providerControlCommand && !directRoomSend(parsed.providerControlCommand)) controlReceiptApi.rememberIntent(room, { executorMember: member, sourceMessage, command: parsed.providerControlCommand, agentMessage: message, turnRequestId: current.requestId, at: now() });
     delete room.recovery;
     room.relay.waitingFor = null;
-    stateApi.extendBudget(room, parsed);
-    const disposition = protocol.relayDisposition(parsed, member.name, repeated, room.relay);
-    if (parsed.done) doneWatchApi.consume(room, { completedMemberId: member.id, message, at: now() });
-    if (parsed.headsUpTarget || parsed.headsUpInvalid) doneWatchApi.emitHeadsUp(room, { senderMemberId: member.id, targetRef: parsed.headsUpTarget, invalid: parsed.headsUpInvalid, done: parsed.done, message, at: now() });
-    stateApi.rememberFinalReceipt(room, current.requestId, message.id, now());
+    const disposition = protocol.relayDisposition(parsed, member.name, repeated, { ...room.relay, singleAgentIdle: (room.members || []).filter((entry) => entry.relayEnabled !== false).length === 1 && readinessOnlyReply(parsed.text) });
+    finalControlEvidence.record(recordIncident, { roomId: room.id, memberId: member.id, requestId: current.requestId, text, disposition, ...finalized });
+    if (parsed.done && (!completion || completion.ok)) doneWatchApi.consume(room, { completedMemberId: member.id, message, at: now() });
+    if ((!completion || completion.ok) && (parsed.headsUpTarget || parsed.headsUpInvalid)) doneWatchApi.emitHeadsUp(room, { senderMemberId: member.id, targetRef: parsed.headsUpTarget, invalid: parsed.headsUpInvalid, done: parsed.done, message, at: now() });
+    stateApi.rememberFinalReceipt(room, current.requestId, message.id, now(), current.sourceMessageId);
     clearCurrent();
-    if (disposition.action === 'stop') setStopped(room, disposition.reason);
+    if (completion && !completion.ok) setStopped(room, `Engineering completion rejected: ${completion.code}`);
+    else if (disposition.action === 'stop') setStopped(room, disposition.reason);
     else enqueueNext(room, message);
     save(snapshot);
     processSoon(0);
@@ -372,11 +380,14 @@ function createDexServerScheduler({
     }
     const activity = activityFromTransport(msg);
     if (activity) {
+      // response_partial is classified as activity and returns here; capture
+      // its bounded preview before the early return for the terminal UI.
+      if (msg.type === 'response_partial') current.partialText = String(msg.text || '').slice(0, 1800);
       markDispatched();
       lease.touch(activity);
       return true;
     }
-    if (msg.type === 'response_final') return completeTurn(msg.text || '');
+    if (msg.type === 'response_final') return completeTurn(msg.text || '', stateApi.capabilityContext(msg.capabilityContext), msg.controlEvidence);
     if (msg.type === 'error') return handleTurnError(msg);
     return false;
   }
@@ -416,24 +427,13 @@ function createDexServerScheduler({
   function transportLost() { recovery.transportLost(); return current ? parkCurrent('Provider transport disconnected.') : true; }
   function resume() { processSoon(0); }
   function diagnostics() {
-    const snapshot = load();
-    const activeRoom = current ? stateApi.roomById(snapshot, current.roomId) : null;
-    const active = current ? {
-      roomId: current.roomId, memberId: current.memberId, requestId: current.requestId,
-      phase: current.phase, retryCount: current.retryCount || 0,
-      targetId: current.targetId || null,
-      ...(lease.diagnostics() || {}),
-      dispatched: !!activeRoom?.recovery?.dispatched,
-      recoveryPending: !!activeRoom?.recovery
-    } : null;
-    return { owner: 'localhost', current: active,
-      queuedIncoming: (snapshot.rooms || []).map((room) => ({ roomId: room.id, queued: (room.deferredRelays || []).length })).filter((entry) => entry.queued),
-      pendingRooms: stateApi.pendingRooms(snapshot).map((room) => room.id),
-      recoveryRooms: (snapshot.rooms || []).filter((room) => !!room.recovery).map((room) => room.id),
-      recovery: recovery.diagnostics() };
+    return schedulerTelemetry.diagnostics({ current, load, stateApi, lease, recovery });
+  }
+  function terminalLiveState(roomId) {
+    return schedulerTelemetry.terminalLiveState(current, roomId);
   }
   return {
-    startRelay, stopRelay, continueRelay,
+    terminalLiveState, startRelay, startMemberTurn, stopRelay, continueRelay,
     handleTransportEvent, onStateChanged, transportLost, resume, process, resolvePassiveRecovery: (input) => recovery.resolvePassive(input), diagnostics
   };
 }

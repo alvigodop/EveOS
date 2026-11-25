@@ -1,5 +1,11 @@
 (() => {
   const GEMINI_ROOM_AUDIO_EVENT = 'nexus-gemini-link-room-audio';
+  const UI_HOLDER_ID = `nexus-viewer-${globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+
+  function uiHello(value) {
+    return value?.role === 'ui' ? { ...value, uiHolderId: UI_HOLDER_ID } : value;
+  }
 
   function ensureGeminiLinkAudioModule() {
     if (globalThis.BrowserAiBridgeGeminiLinkAudio || typeof document === 'undefined') return;
@@ -22,6 +28,8 @@
     let socket = null;
     let reconnectTimer = null;
     let disconnectTimer = null;
+    let resumeTimer = null;
+    let suspendedUntil = 0;
     let phase = 'connecting';
     let epoch = 0;
     let reconnectAttempt = 0;
@@ -32,7 +40,7 @@
     let dexRuntimeRole = clientKind === 'dex' ? 'unknown' : '';
 
     function snapshot(extra = {}) {
-      return { phase, epoch, dispatchReady: phase === 'connected', ...extra };
+      return { phase, epoch, dispatchReady: phase === 'connected', suspendedUntil: suspendedUntil || null, ...extra };
     }
     function transition(next, extra = {}) {
       if (phase === next && !Object.keys(extra).length) return snapshot();
@@ -66,7 +74,7 @@
         reconnectAttempt = 0;
         epoch += 1;
         transition('connected');
-        if (hello) send(typeof hello === 'function' ? hello() : hello);
+        if (hello) send(uiHello(typeof hello === 'function' ? hello() : hello));
         onOpen(snapshot());
       });
       next.addEventListener('message', (event) => {
@@ -110,19 +118,44 @@
       });
       return true;
     }
-    function stop() {
+    function suspendUntil(value) {
+      const until = Number(value || 0);
+      const delay = until - Date.now();
+      if (!Number.isFinite(until) || delay < 1000 || delay > 600000) return false;
       stopped = true;
+      suspendedUntil = until;
       clearDisconnectTimer();
       if (reconnectTimer != null) timers.clearTimeout(reconnectTimer);
       reconnectTimer = null;
+      if (resumeTimer != null) timers.clearTimeout(resumeTimer);
+      const current = socket;
+      socket = null;
+      transition('suspended', { suspendedUntil });
+      try { current?.close?.(1000, 'bounded viewer standby lease'); } catch {}
+      resumeTimer = timers.setTimeout(() => {
+        resumeTimer = null;
+        suspendedUntil = 0;
+        stopped = false;
+        connect();
+      }, delay);
+      return true;
+    }
+    function stop() {
+      stopped = true;
+      suspendedUntil = 0;
+      clearDisconnectTimer();
+      if (reconnectTimer != null) timers.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      if (resumeTimer != null) timers.clearTimeout(resumeTimer);
+      resumeTimer = null;
       socket?.close?.();
       socket = null;
     }
 
-    return { connect, send, stop, snapshot: () => snapshot() };
+    return { connect, send, suspendUntil, stop, snapshot: () => snapshot() };
   }
 
-  const api = { createClient, GEMINI_ROOM_AUDIO_EVENT };
+  const api = { createClient, uiHolderId: UI_HOLDER_ID, uiHello, GEMINI_ROOM_AUDIO_EVENT };
   globalThis.BrowserAiBridgeUiSocket = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

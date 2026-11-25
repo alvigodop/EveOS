@@ -2,12 +2,19 @@ import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { broadcastState, getMember, getRoom, hasRoom, publicState, resolveRoomId } from './room-store.js';
 import { json, readBody } from './http-utils.js';
+import { observeLinkedPlayout } from './presentation-routes.js';
+import { parseYoutubeUrl } from './youtube.js';
 
 const streams = new Map();
 const token = () => crypto.randomBytes(24).toString('hex');
 const send = (socket, data) => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data)); };
 const text = (value, limit = 200) => String(value || '').slice(0, limit);
 const authorized = (stream, secret) => stream && secret === stream.publisherToken;
+export function ownsLinkedSource(room, member, proof) {
+  const stream = streams.get(room.linkedSourceId);
+  return !!member && !!stream && stream.linkedMemberId === member.id && stream.roomId === room.id
+    && proof?.id === stream.id && authorized(stream, proof.token);
+}
 function iceServers() {
   try { const value = JSON.parse(process.env.WATCHFUSION_ICE_SERVERS || '[]'); return Array.isArray(value) ? value.slice(0, 8) : []; }
   catch { return []; }
@@ -22,7 +29,8 @@ function roomAccess(roomId, memberId, streamId) {
   const id = resolveRoomId(roomId);
   if (!id || !hasRoom(id)) return null;
   const room = getRoom(id);
-  if (!getMember(room, memberId) || room.source?.streamId !== streamId || streams.get(streamId)?.roomId !== room.id) return null;
+  if (!getMember(room, memberId) || streams.get(streamId)?.roomId !== room.id) return null;
+  if (room.source?.streamId !== streamId && room.linkedSourceId !== streamId) return null;
   return { room, host: room.hostId === memberId };
 }
 function audioSyncSample(value = {}) {
@@ -61,8 +69,18 @@ function broadcastAudioSync(stream) {
 }
 function dispose(stream) {
   streams.delete(stream.id);
+  let detachedRoom;
+  if (stream.linkedMemberId && hasRoom(stream.roomId)) {
+    const room = getRoom(stream.roomId);
+    if (room.linkedSourceId === stream.id) {
+      room.linkedSourceId = null;
+      broadcastState(room);
+      detachedRoom = room;
+    }
+  }
   stream.syncSamples.clear();
   for (const socket of [stream.publisher, ...stream.viewers.values()]) socket?.close(1000, 'Live source stopped');
+  return detachedRoom;
 }
 export async function handleLiveRoute(req, res, parts) {
   if (parts[0] !== 'api' || parts[1] !== 'live') return false;
@@ -77,25 +95,57 @@ export async function handleLiveRoute(req, res, parts) {
   const stream = streams.get(parts[2]);
   if (!authorized(stream, body.publisherToken)) return json(res, 403, { error: 'Live source ownership required.' });
   stream.at = Date.now();
-  if (parts[3] === 'stop') { dispose(stream); return json(res, 200, { ok: true }); }
+  if (parts[3] === 'stop') {
+    const room = dispose(stream);
+    return json(res, 200, { ok: true, ...(room ? { state: publicState(room) } : {}) });
+  }
   if (parts[3] === 'room') {
     const id = resolveRoomId(body.roomId);
     const room = id && hasRoom(id) ? getRoom(id) : null;
     const memberId = String(req.headers['x-member-id'] || '');
     if (!room || !getMember(room, memberId) || room.hostId !== memberId) return json(res, 403, { error: 'Only the current host can share a live source.' });
+    if (body.mode === 'linked-tab') {
+      if (stream.roomId && (stream.roomId !== room.id || stream.linkedMemberId !== memberId)) {
+        return json(res, 409, { error: 'Source already belongs to a different session.' });
+      }
+      stream.roomId = room.id;
+      stream.linkedMemberId = memberId;
+      room.linkedSourceId = stream.id;
+      broadcastState(room);
+      return json(res, 200, { ok: true, state: publicState(room) });
+    }
+    if (stream.linkedMemberId) return json(res, 409, { error: 'Source belongs to a linked tab.' });
     stream.roomId = room.id;
+    room.linkedSourceId = null;
     room.source = { kind: 'live', type: 'live', streamId: stream.id, title: text(body.title) || 'Live media', mode: body.mode === 'audioflix' ? 'audioflix' : 'tab' };
     broadcastState(room);
     return json(res, 200, { ok: true, state: publicState(room) });
   }
   return json(res, 404, { error: 'Unknown live action.' });
 }
+function relayLinkedPlayout(stream, raw = {}) {
+  if (!stream.linkedMemberId || !hasRoom(stream.roomId)) return;
+  const room = getRoom(stream.roomId, {touch:false}), state = stream.metadata;
+  if (room.linkedSourceId !== stream.id || room.hostId !== stream.linkedMemberId || !room.members.has(stream.linkedMemberId) || !room.source) return;
+  const matches = room.source.videoId ? parseYoutubeUrl(state.pageUrl) === room.source.videoId : state.pageUrl === (room.source.originalUrl || room.source.url);
+  if (!matches) return;
+  observeLinkedPlayout(room, {
+    outputSession:stream.id, sampledAt:raw.serverSampledAt ?? state.relayReceivedAt, positionMs:state.currentTime * 1000,
+    uncertaintyMs:raw.uncertaintyMs, tabMuted:raw.tabMuted === true, ready:!state.status && raw.currentTime != null,
+    playing:!state.paused && !state.ended && Math.abs(state.rate - room.playback.rate) < .01, buffering:state.buffering
+  }, state.relayReceivedAt);
+}
 function metadata(value = {}) {
   const pageUrl = /^https?:\/\//i.test(String(value.pageUrl || '')) ? text(value.pageUrl, 2048) : '';
-  return { title: text(value.title), group: text(value.group), pageUrl, paused: !!value.paused, ended: !!value.ended,
+  const relayReceivedAt = Date.now();
+  return { title: text(value.title), group: text(value.group), pageUrl, paused: !!value.paused, ended: !!value.ended, buffering: value.buffering === true,
     sampledAt: Math.max(0, Number(value.sampledAt) || 0),
+    ...(typeof value.tabMuted === 'boolean' ? {tabMuted:value.tabMuted} : {}), ...(typeof value.sourcePlayerSilenced === 'boolean' ? {sourcePlayerSilenced:value.sourcePlayerSilenced} : {}),
+    publisherReceivedAt: Math.max(0, Number(value.publisherReceivedAt) || 0),
+    publisherSentAt: Math.max(0, Number(value.publisherSentAt) || 0), relayReceivedAt,
     currentTime: Math.max(0, Number(value.currentTime) || 0), duration: Math.max(0, Number(value.duration) || 0),
-    rate: Math.min(4, Math.max(0.25, Number(value.rate) || 1)), volume: Math.min(1, Math.max(0, Number(value.volume) || 0)),
+    rate: Math.min(4, Math.max(0.25, Number(value.rate) || 1)),
+    volume: pageUrl && !Number.isFinite(value.volume) ? null : Math.min(1, Math.max(0, Number(value.volume) || 0)),
     index: Math.max(0, Number(value.index) || 0), shuffle: !!value.shuffle, loop: !!value.loop,
     status: text(value.status), queue: Array.isArray(value.queue) ? value.queue.slice(0, 500).map(item => ({ id: text(item.id, 100), title: text(item.title) })) : [] };
 }
@@ -111,7 +161,8 @@ export function attachLiveStreams(server) {
     const authTimer = setTimeout(() => socket.close(1008, 'Authentication required'), 5000);
     socket.on('message', raw => {
       try {
-        if (Date.now() - windowAt > 1000) { count = 0; windowAt = Date.now(); }
+        const receivedAt = Date.now();
+        if (receivedAt - windowAt > 1000) { count = 0; windowAt = Date.now(); }
         if (++count > 100) return socket.close(1008, 'Too many messages');
         const message = JSON.parse(raw);
         if (!stream) {
@@ -130,7 +181,7 @@ export function attachLiveStreams(server) {
           } else {
             peerId = crypto.randomUUID(); stream.viewers.set(peerId, socket);
             send(socket, { type: 'ready', iceServers: iceServers(), peer: peerId });
-            send(socket, { type: 'metadata', metadata: stream.metadata });
+            send(socket, { type: 'metadata', metadata: { ...stream.metadata, relaySentAt: Date.now() } });
             send(socket, { type: 'status', status: stream.publisher ? 'Connecting live media…' : 'Waiting for source…' });
             send(stream.publisher, { type: 'viewer', peer: peerId });
           }
@@ -147,16 +198,18 @@ export function attachLiveStreams(server) {
           send(publisher ? stream.viewers.get(message.peer) : stream.publisher, { type: 'signal', peer: publisher ? message.peer : peerId, signal });
         } else if (publisher && message.type === 'metadata') {
           stream.metadata = metadata(message.metadata);
-          for (const viewer of stream.viewers.values()) send(viewer, { type: 'metadata', metadata: stream.metadata });
+          relayLinkedPlayout(stream, message.metadata);
+          for (const viewer of stream.viewers.values()) send(viewer, { type: 'metadata', metadata: { ...stream.metadata, relaySentAt: Date.now() } });
         } else if (!publisher && message.type === 'sync-sample' && stream.roomId) {
           const sample = audioSyncSample(message.sample);
           if (sample) { stream.syncSamples.set(peerId, sample); broadcastAudioSync(stream); }
         } else if (!publisher && message.type === 'control') {
-          const canControl = credential.owner || roomAccess(credential.roomId, credential.memberId, stream.id)?.host;
+          const roomHost = roomAccess(credential.roomId, credential.memberId, stream.id)?.host;
+          const canControl = roomHost || (!stream.linkedMemberId && credential.owner);
           if (!canControl) return send(socket, { type: 'status', status: 'Only the host controls this live source.' });
           if (!['play', 'pause', 'toggle', 'seek', 'rate', 'volume', 'prev', 'next', 'jump', 'shuffle', 'loop'].includes(message.action)) return;
           send(stream.publisher, { type: 'control', action: message.action, value: Number(message.value) || 0 });
-        } else if (message.type === 'ping') send(socket, { type: 'pong' });
+        } else if (message.type === 'ping') send(socket, {type:'pong', sentAt:message.sentAt, receivedAt, serverTime:Date.now()});
       } catch { send(socket, { type: 'status', status: 'Invalid live message' }); }
     });
     socket.on('close', () => {

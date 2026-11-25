@@ -182,3 +182,19 @@ Astro local gate before deployment:
 3. Complete Nexus test suite, npm run --silent test:guardrails, git diff --check, exact file line-cap checks (440 soft and 450 hard). Return exact tested HEAD, totals and any failures.
 4. First inspect the exact current recovery/queue/request ID without sending or replaying anything. Only after the original recovery is passive or settled, qualify one disposable NEW exact-tab relay, with no in-flight old gesture, and verify one scoped click or native form submit, one newly committed user turn, one response_final bearing its exact RETURN or complete CMD, one durable room message and one correctly correlated control receipt. Check duplicate suppression, cross-tab isolation and negative ACK handling. Native local-agent automatic result injection still requires its separate owner/epoch/lease qualification.
 5. Restart only if a fresh qualification requires a safe supervised cutover. Do not interrupt the live supervisor merely to retry an old request, create another branch or promote main before local validation.
+
+## Agent-requested Playwright acceptance (candidate)
+
+Dex-bound agents may request one **registered** browser proof through an exact trailing provider command:
+
+```text
+[[DEX:CMD {"action":"playwright_prepare","space":"<authorized space ID>","terminal":"<attached Windows managed terminal ID>","scenario":"agent-nexus-browser"}]]
+```
+
+This prepares an inert supervised job. The local Machine Spaces owner can approve it in either of two ways while Human Input is enabled: press **Start supervised**, or send the exact five-minute `/approve-playwright <job-id> <digest-prefix> <challenge>` phrase shown on that job's review card. A generic `yes`, an approval from another room/client, a changed/expired phrase, or a replay cannot start anything. Exact chat approval is consumed once, stored as authorization provenance, and followed by a system receipt in that same Dex room.
+
+The chat phrase is a bounded approval transport, not a browser command language. The agent still cannot supply a URL, selector, JavaScript, script path, shell command or options. The target must be attached to the exact room/space and have a working directory equal to the canonical EveOS repository root. The runner's SHA-256 is pinned at preparation and rechecked just before either approved launch. A changed runner requires a new approval/job. The loopback server and OS-user-local Nexus session remain the security boundary; do not expose this approval client on a public listener.
+
+The browser smoke uses disposable Playwright state and mocked API responses, not Drift's private Agent Management records. It uses the existing browser launcher and diagnostic infrastructure. Agents inspect the immutable job through `job_status` (including final output ID/exit code) and use `terminal_output` for bounded room-scoped output; the local UI also displays the supervised job's evidence. A matching request ID is exact-once and cannot silently launch twice. If a restart interrupts the job, the existing supervised-job outcome-unknown rules apply; do not blindly replay.
+
+This checkpoint does **not** grant direct TLO chat arbitrary browser access. It adds an authorized Dex/Machine Spaces Playwright scenario only; further selectors, mutable page actions, and direct TLO tools require separate qualification and grants.

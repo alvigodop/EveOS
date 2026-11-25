@@ -2,10 +2,23 @@
 
 const { randomUUID } = require('node:crypto');
 const { createSupervisedJobCoordinator } = require('./supervised-job');
+const { inspectGovernorRuns } = require('./governor-run-inspect');
 const { createSupervisedJobProviderControl, ACTIONS } = require('./supervised-job-provider-control');
-const { findSpace } = require('./server-controller-filesystem');
+const { findSpace } = require('./server-controller-model');
+const { verifyPrepared } = require('./playwright-job-plan');
+const { publicChatApproval, validateChatApproval, validateChatApprovalIntent,
+  validateWorkflowChatApproval } = require('./supervised-chat-approval');
+const { workflowEligible, createWorkflowAuthorization,
+  validateInheritedRecovery } = require('./engineering-workflow-authorization');
+const { createLocalPlanController } = require('./server-controller-local-plans');
+const { recoveryProjection } = require('./engineering-recovery-result');
+const { createSupervisedLiveView } = require('./supervised-live-view');
+const { ACTION: WORKSPACE_ACTION,
+  createWorkspaceProvisionProviderControl } = require('./workspace-provision-provider-control');
+const schedulerState = require('../dex/server-scheduler-state');
 const dexProtocol = require('../public/dex-protocol');
 for (const action of ACTIONS) dexProtocol.PROVIDER_CONTROL_ACTIONS.add(action);
+dexProtocol.PROVIDER_CONTROL_ACTIONS.add(WORKSPACE_ACTION);
 
 function machineError(code, message) { return Object.assign(new Error(message), { code }); }
 
@@ -13,9 +26,16 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
   const uiSockets = options.uiSockets || new Set();
   const safeSend = options.safeSend || (() => false);
   const getState = options.getState || (() => null);
+  const saveState = options.saveState || ((value) => value);
+  const broadcastState = options.broadcastState || (() => {});
+  const nowMs = options.now || (() => Date.now());
   const base = createBaseController(options);
   const jobs = options.supervisedJobs || createSupervisedJobCoordinator({ now: options.now });
   const commandStore = options.supervisedCommandStore || new Map();
+  const governorReceiptReader = options.governorReceiptReader || inspectGovernorRuns;
+  const onSupervisedJobSettled = options.onSupervisedJobSettled || (() => {});
+  const liveView = options.supervisedLiveView || createSupervisedLiveView();
+  const governorRoot = options.governorRoot || require('node:path').resolve(__dirname, '..', '..', '..');
   const sessions = new WeakMap();
   const hooked = new WeakSet();
 
@@ -35,8 +55,23 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
     if (!uiSockets.has(ws)) throw machineError('MACHINE_LOCAL_OWNER_REQUIRED', 'Only the local Machine Spaces owner can launch, interrupt, or rebound supervised jobs.');
   }
   function visible(roomId = null, spaceId = null) {
+    const snapshot = getState();
     return jobs.snapshot().jobs.filter((job) => (!roomId || job.roomId === roomId) && (!spaceId || job.spaceId === spaceId))
-      .map((job) => ({ ...job, commandAvailable: commandStore.has(job.jobId) }));
+      .map((job) => {
+        const stored = commandStore.get(job.jobId);
+        const display = stored?.displayCommand || stored?.command || '';
+        const room = (snapshot?.rooms || []).find((entry) => entry.id === job.roomId);
+        const space = (room?.machineSpaces?.spaces || []).find((entry) => entry.id === job.spaceId);
+        const target = base.broker?.target?.(job.targetId);
+        const owner = (room?.members || []).find((entry) => entry.id === job.ownerMemberId);
+        return { ...job, roomName: room?.name || null, spaceName: space?.name || null,
+          targetLabel: target?.label || null, ownerName: owner?.name || null, commandAvailable: !!stored,
+          commandPreview: display ? (display.length > 180 ? `${display.slice(0, 177)}...` : display) : null,
+          governor: stored?.governor || null, recovery: stored?.recovery || null,
+          visibleTerminal: stored?.visibleTerminal === true,
+          workflowEligible: workflowEligible(job, stored),
+          chatApproval: publicChatApproval(stored, nowMs) };
+      });
   }
   function broadcastJobs(reason, changed = []) {
     const payload = { type: 'machine_supervised_jobs', reason, jobs: visible(), changed };
@@ -57,6 +92,12 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
       } catch {}
     }
     const lease = current.state === 'running' ? current.lease : null;
+    const storedBeforeSettle = commandStore.get(jobId) || null;
+    let governorEvidence = null;
+    try {
+      if (storedBeforeSettle?.governor?.runId) governorEvidence = governorReceiptReader({ maxRuns: 16 }).runs
+        ?.find((entry) => entry.runId === storedBeforeSettle.governor.runId) || null;
+    } catch {}
     try {
       const settled = jobs.settle(jobId, {
         state: ['completed', 'failed', 'cancelled', 'outcome-unknown'].includes(state) ? state : 'failed',
@@ -66,33 +107,127 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
         reason: error?.message || result?.reason || null,
         result: error ? null : {
           outputId, exitCode: result.exitCode, signal: result.signal, bytes: result.bytes,
-          totalBytes: result.totalBytes, outputTruncated: result.outputTruncated === true
+          totalBytes: result.totalBytes, outputTruncated: result.outputTruncated === true,
+          recovery: recoveryProjection(result), governorState: governorEvidence?.state || null,
+          publicationSha: state === 'completed' && Number(result.exitCode) === 0 ? governorEvidence?.published || null : null
         }
       });
+      const settledPlan = commandStore.get(jobId) || null;
       commandStore.delete(jobId);
       broadcastJobs('settled', [settled]);
+      try { onSupervisedJobSettled(settled, settledPlan); } catch {}
     } catch {}
   }
-  function startLocal(ws, msg) {
-    requireLocal(ws);
-    const current = jobs.status(msg.jobId);
+  const localPlans = createLocalPlanController({ jobs, commandStore, broker: base.broker,
+    getState, repoRoot: governorRoot, resolveHead: options.resolveSupervisedHead });
+  function prepareEngineeringRecovery(msg) {
+    const job = localPlans.prepareRecovery(msg);
+    broadcastJobs('engineering-recovery-prepared', [job]);
+    return job;
+  }
+
+  function launch(current, stored, target, authorization, sessionId, notifyWs = null) {
+    jobs.authorize(current.jobId, authorization);
+    const running = jobs.start(current.jobId, { sessionId, targetId: target.id, processEpoch: target.processEpoch });
+    let observer = null;
+    if (stored.visibleTerminal === true) {
+      try { observer = liveView.start({ jobId: current.jobId, command: stored.displayCommand || stored.command }); }
+      catch { observer = null; }
+    }
+    const run = base.broker.runSupervised({
+      targetId: target.id, processEpoch: target.processEpoch, requestId: current.requestId, command: stored.command,
+      onStart(detail) {
+        if (notifyWs) safeSend(notifyWs, { type: 'machine_supervised_job_started', job: jobs.status(current.jobId), process: detail });
+      },
+      onData(detail) { observer?.write(detail); }
+    });
+    run.then((result) => { observer?.finish(result); settleFromProcess(current.jobId, result); },
+      (error) => { observer?.finish(null, error); settleFromProcess(current.jobId, null, error); });
+    broadcastJobs('started', [running]);
+    return running;
+  }
+
+  function prepared(jobId) {
+    const current = jobs.status(jobId);
     if (current.state !== 'queued') throw machineError('MACHINE_JOB_STATE_CONFLICT', `Job is ${current.state}; queued is required for first launch.`);
     const stored = commandStore.get(current.jobId);
     if (!stored?.command) throw machineError('MACHINE_JOB_COMMAND_UNAVAILABLE', 'The prepared command is no longer available. Do not replay it; prepare a new job only after confirming this one never launched.');
     const target = base.broker.target(current.targetId);
     if (!target || target.processEpoch !== current.processEpoch)
       throw machineError('MACHINE_JOB_TARGET_EPOCH_MISMATCH', 'The prepared terminal was replaced before launch.');
+    if (stored.kind === 'governor' || stored.kind === 'recovery') localPlans.revalidate(stored, target);
+    if (stored.kind === 'playwright-acceptance' || current.kind === 'playwright-acceptance') {
+      if (stored.kind !== current.kind)
+        throw machineError('MACHINE_PLAYWRIGHT_PLAN_CHANGED', 'The queued Playwright job kind changed.');
+      verifyPrepared({ stored, target, repoRoot: governorRoot });
+    }
     const active = base.broker.activeInfo(target.id);
     if (active)
       throw machineError('MACHINE_TARGET_BUSY', `The managed terminal is already running ${active.mode || 'a command'}; the supervised job remains queued.`);
-    const sessionId = localSession(ws);
-    const running = jobs.start(current.jobId, { sessionId, targetId: target.id, processEpoch: target.processEpoch });
-    const run = base.broker.runSupervised({
-      targetId: target.id, processEpoch: target.processEpoch, requestId: current.requestId, command: stored.command,
-      onStart(detail) { safeSend(ws, { type: 'machine_supervised_job_started', job: jobs.status(current.jobId), process: detail }); }
-    });
-    run.then((result) => settleFromProcess(current.jobId, result), (error) => settleFromProcess(current.jobId, null, error));
-    broadcastJobs('started', [running]);
+    return { current, stored, target };
+  }
+
+  function startLocal(ws, msg, authorization = null) {
+    requireLocal(ws);
+    const { current, stored, target } = prepared(msg.jobId);
+    let provenance = authorization || { method: 'local-ui-confirmation' };
+    if (msg.approveWorkflow === true || authorization?.workflowApproval === true) {
+      provenance = { ...provenance, method: authorization?.method || 'local-ui-workflow-confirmation',
+        workflow: createWorkflowAuthorization({ job: current, stored,
+          expectedHead: localPlans.currentHead(), now: nowMs }) };
+      delete provenance.workflowApproval;
+    }
+    return launch(current, stored, target, provenance, localSession(ws), ws);
+  }
+
+  function startEngineeringRecovery(jobId, input = {}) {
+    const { current, stored, target } = prepared(jobId);
+    const authorization = validateInheritedRecovery({ authorization: input.authorization,
+      incidentJob: input.incidentJob, recoveryJob: current, stored,
+      currentHead: localPlans.currentHead(), now: nowMs });
+    return launch(current, stored, target, authorization,
+      `machine-workflow-${authorization.workflow.rootJobId}`, null);
+  }
+  function approveFromChat(ws, msg) {
+    requireLocal(ws);
+    if (ws.clientKind !== 'machine-chat-approval')
+      throw machineError('MACHINE_CHAT_APPROVAL_CLIENT_REQUIRED', 'Chat approval requires the dedicated local Dex approval client.');
+    let current;
+    if (msg.approvalIntent) {
+      const pending = jobs.snapshot().jobs.filter((job) => job.roomId === String(msg.roomId || '')
+        && job.state === 'queued' && publicChatApproval(commandStore.get(job.jobId), nowMs));
+      if (!pending.length)
+        throw machineError('MACHINE_CHAT_APPROVAL_NONE', 'This room has no pending supervised request to approve.');
+      if (pending.length !== 1)
+        throw machineError('MACHINE_CHAT_APPROVAL_AMBIGUOUS', 'This room has multiple pending supervised requests; use the exact job-specific phrase.');
+      current = jobs.status(pending[0].jobId);
+    } else current = jobs.status(msg.jobId);
+    const stored = commandStore.get(current.jobId);
+    const workflow = workflowEligible(current, stored);
+    const sourceMessageId = `msg-supervised-approval-${randomUUID()}`;
+    const authorization = workflow
+      ? validateWorkflowChatApproval({ message: msg, job: current, stored, now: nowMs })
+      : msg.approvalIntent
+        ? validateChatApprovalIntent({ message: msg, job: current, stored, now: nowMs })
+        : validateChatApproval({ message: msg, job: current, stored, now: nowMs });
+    const running = startLocal(ws, { jobId: current.jobId, approveWorkflow: workflow },
+      { ...authorization, sourceMessageId });
+    let snapshot = getState();
+    const room = (snapshot?.rooms || []).find((entry) => entry.id === current.roomId);
+    if (room) {
+      const at = new Date(nowMs()).toISOString();
+      schedulerState.addMessage(room, { id: sourceMessageId, senderKind: 'user', senderId: 'user',
+        senderName: String(room.userName || 'Local operator').slice(0, 48), text: authorization.approvedText, at });
+      const receipt = schedulerState.addMessage(room, { id: `msg-supervised-start-${randomUUID()}`,
+        senderKind: 'system', senderId: null, senderName: 'Machine Spaces',
+        text: workflow
+          ? `Local chat approval bound to ${current.jobId}; its exact one-repair engineering workflow started.`
+          : `Local chat approval bound to ${current.jobId} and consumed once; registered Playwright job started.`, at });
+      receipt.supervisedApproval = { schema: 'eveos.machine-spaces.supervised-chat-receipt.v1',
+        jobId: current.jobId, method: authorization.method,
+        approvalDigest: authorization.approvalDigest, sourceMessageId, workflow };
+      snapshot = saveState(snapshot); broadcastState(snapshot);
+    }
     return running;
   }
   function reboundLocal(ws, msg) {
@@ -124,6 +259,7 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
         });
         commandStore.delete(current.jobId);
         broadcastJobs('settled', [settled]);
+        try { onSupervisedJobSettled(settled); } catch {}
         return settled;
       }
       return jobs.status(current.jobId);
@@ -134,16 +270,25 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
       sessionId: lease?.holderSessionId,
       leaseId: lease?.leaseId
     });
-    commandStore.delete(current.jobId); broadcastJobs('cancelled', [cancelled]); return cancelled;
+    commandStore.delete(current.jobId); broadcastJobs('cancelled', [cancelled]);
+    try { onSupervisedJobSettled(cancelled); } catch {}
+    return cancelled;
   }
 
   const jobControl = createSupervisedJobProviderControl({ jobs, commandStore, broker: base.broker, getState,
-    findSpace: (room, reference) => findSpace(room, reference) });
+    repoRoot: governorRoot, now: nowMs, findSpace: (room, reference) => findSpace(room, reference),
+    prepareGovernor: (input) => localPlans.prepareProviderGovernor(input) });
+  const workspaceControl = typeof base.broker?.createSession === 'function'
+    ? createWorkspaceProvisionProviderControl({ getState, saveState, broadcastState,
+      broker: base.broker, repoRoot: governorRoot, now: nowMs })
+    : { owns: () => false, route: () => null };
   const providerControl = {
-    owns(action) { const value = String(action || '').toLowerCase(); return jobControl.owns(value) || base.providerControl.owns(value); },
+    owns(action) { const value = String(action || '').toLowerCase();
+      return workspaceControl.owns(value) || jobControl.owns(value) || base.providerControl.owns(value); },
     route(input, helpers) {
       const action = String(input?.command?.action || '').toLowerCase();
-      const outcome = jobControl.owns(action) ? jobControl.route(input, helpers) : base.providerControl.route(input, helpers);
+      const outcome = workspaceControl.owns(action) ? workspaceControl.route(input, helpers)
+        : jobControl.owns(action) ? jobControl.route(input, helpers) : base.providerControl.route(input, helpers);
       if (jobControl.owns(action)) broadcastJobs('provider-control');
       return outcome;
     }
@@ -152,6 +297,30 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
   async function handle(ws, msg = {}) {
     const type = String(msg.type || '');
     try {
+      if (type === 'machine_prepare_governor_job') {
+        requireLocal(ws); const job = localPlans.prepareGovernor(msg);
+        safeSend(ws, { type: 'machine_governor_job_prepared', requestId: msg.requestId, job });
+        broadcastJobs('governor-prepared', [job]);
+        return true;
+      }
+      if (type === 'machine_prepare_recovery_job') {
+        requireLocal(ws); const job = localPlans.prepareRecovery(msg);
+        safeSend(ws, { type: 'machine_recovery_job_prepared', requestId: msg.requestId, job });
+        broadcastJobs('recovery-prepared', [job]);
+        return true;
+      }
+      if (type === 'machine_prepare_room_recovery') {
+        requireLocal(ws); const job = localPlans.prepareRoomRecovery(msg);
+        safeSend(ws, { type: 'machine_recovery_job_prepared', requestId: msg.requestId, job });
+        broadcastJobs('room-recovery-prepared', [job]);
+        return true;
+      }
+      if (type === 'machine_governor_receipts') {
+        requireLocal(ws); localSession(ws);
+        const evidence = governorReceiptReader();
+        safeSend(ws, { type: 'machine_governor_receipts', requestId: msg.requestId || null, ...evidence });
+        return true;
+      }
       if (type === 'machine_supervised_jobs') {
         requireLocal(ws); localSession(ws);
         safeSend(ws, { type: 'machine_supervised_jobs', reason: 'snapshot', jobs: visible(msg.roomId || null, msg.spaceId || null) });
@@ -159,6 +328,11 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
       }
       if (type === 'machine_start_supervised_job') {
         const job = startLocal(ws, msg); safeSend(ws, { type: 'machine_supervised_job_changed', action: 'started', job }); return true;
+      }
+      if (type === 'machine_chat_approve_supervised_job') {
+        const job = approveFromChat(ws, msg);
+        safeSend(ws, { type: 'machine_supervised_job_changed', requestId: msg.requestId || null,
+          action: 'started', approvalMethod: job.authorization?.method || null, job }); return true;
       }
       if (type === 'machine_rebound_supervised_job') {
         const job = reboundLocal(ws, msg); safeSend(ws, { type: 'machine_supervised_job_changed', action: 'rebound', job }); return true;
@@ -178,12 +352,17 @@ function enhanceMachineSpacesSupervisedController(createBaseController, options 
   const previousStop = base.stop?.bind(base);
   function stop() {
     for (const job of jobs.snapshot().jobs) {
-      if (['queued', 'running', 'deferred'].includes(job.state)) jobs.terminalizeForTarget(job.targetId, job.processEpoch, 'nexus-stopped');
+      if (['queued', 'running', 'deferred'].includes(job.state)) {
+        for (const settled of jobs.terminalizeForTarget(job.targetId, job.processEpoch, 'nexus-stopped')) {
+          try { onSupervisedJobSettled(settled); } catch {}
+        }
+      }
     }
     previousStop?.();
   }
 
-  return { ...base, handle, providerControl, supervisedJobs: jobs, supervisedCommandStore: commandStore, jobControl, stop };
+  return { ...base, handle, providerControl, supervisedJobs: jobs, supervisedCommandStore: commandStore,
+    prepareEngineeringRecovery, startEngineeringRecovery, jobControl, stop };
 }
 
 module.exports = { enhanceMachineSpacesSupervisedController };

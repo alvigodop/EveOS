@@ -1,7 +1,11 @@
+import { renderQueuePreview } from './piano_queue_preview.js';
+import { enhanceSongListDisclosure } from './piano_unified_song_list.js';
+
 const STYLE_ID = 'pianoUnifiedWorkspaceStyles';
 const LEGACY_QUEUE = '.sheet-workspace-queue';
 const LEGACY_LIBRARY = '.library-panel';
 const DISCLOSURE_KEY = 'piano_ui_disclosure_v1';
+const QUEUE_PREVIEW_CLOSE_MS = 550;
 
 function loadStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -61,11 +65,6 @@ function saveCollapsed(key, collapsed) {
   } catch (_) {}
 }
 
-function queuePosition(state) {
-  if (!state?.currentId || !Array.isArray(state.items)) return -1;
-  return state.items.findIndex(item => String(item.queueId) === String(state.currentId));
-}
-
 function labelForQueueItem(item) {
   return String(item?.title || item?.name || item?.label || item?.song?.title || item?.songId || 'Untitled');
 }
@@ -94,6 +93,9 @@ function proxyButton(id) {
 
 function setPanelCollapsed(panel, key, collapsed, button) {
   panel.dataset.uCollapsed = collapsed ? '1' : '0';
+  if (key === 'playback-controls') {
+    panel.closest('.hero-grid')?.classList.toggle('piano-controls-collapsed', collapsed);
+  }
   button.textContent = collapsed ? 'Expand' : 'Collapse';
   button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   saveCollapsed(key, collapsed);
@@ -163,7 +165,7 @@ function enhanceEditorDisclosure(planner) {
 function enhanceLibraryBrowserDisclosure(planner) {
   const body = planner.querySelector('.planner-body');
   if (!body || body.querySelector('.piano-library-browser')) return;
-  const nodes = ['.planner-pills', '.planner-filterbar', '.planner-actions', '.planner-grid']
+  const nodes = ['.planner-pills', '.planner-filters', '.planner-actions', '.planner-grid']
     .map(selector => planner.querySelector(selector));
   if (nodes.some(node => !node)) return;
 
@@ -174,7 +176,7 @@ function enhanceLibraryBrowserDisclosure(planner) {
   head.innerHTML = `
     <div class="piano-library-browser-copy">
       <strong>LIBRARY BROWSER</strong>
-      <small>Filters, saved items, queue actions, and song details.</small>
+      <small>Choose songs, shape the queue, then inspect details when needed.</small>
     </div>
     <button type="button" class="ghost small" data-u-library-toggle aria-label="Toggle library browser">Collapse</button>`;
   const content = document.createElement('div');
@@ -213,7 +215,7 @@ function buildHeader(planner) {
     <div class="piano-unified-title">
       <p class="eyebrow">PIANO LIBRARY / WORKSPACE</p>
       <h2>My Songs</h2>
-      <p>Saved sheets and recordings, favorites, queue order, metadata, and song-level playback settings live here.</p>
+      <p>Build a queue, follow playback, and manage each saved song from one focused workspace.</p>
     </div>
     <div class="piano-unified-tools">
       <button type="button" data-u-import>Import</button>
@@ -226,11 +228,14 @@ function buildHeader(planner) {
   now.className = 'piano-now-playing';
   now.innerHTML = `
     <div class="piano-now-copy">
-      <span>NOW PLAYING</span>
+      <div class="piano-now-kicker"><span>NOW PLAYING</span><button type="button" class="ghost" data-u-view-player>View player</button></div>
       <strong data-u-current>Nothing playing</strong>
-      <small data-u-next>Queue is empty</small>
+      <div class="piano-next-wrap" tabindex="0" aria-label="Show complete queue timeline">
+        <small data-u-next>Queue is empty</small>
+        <div class="piano-queue-preview" data-u-queue-preview role="list" aria-label="Complete queue timeline"></div>
+      </div>
     </div>
-    <div class="piano-now-controls">
+    <div class="piano-now-settings">
       <label>Queue mode
         <select data-u-mode>
           <option value="manual">Manual</option>
@@ -244,11 +249,16 @@ function buildHeader(planner) {
           <option value="1000">1.00 s</option><option value="1500">1.50 s</option>
         </select>
       </label>
+    </div>
+    <div class="piano-now-controls">
       <span data-u-position>0 / 0</span>
-      <button type="button" data-u-play>Play queue</button>
-      <button type="button" data-u-shuffle>Shuffle</button>
-      <button type="button" data-u-clear>Clear</button>
-      <button type="button" data-u-stop>Stop</button>
+      <button type="button" class="primary piano-queue-toggle" data-u-play>Play queue</button>
+      <div class="piano-transport-group" role="group" aria-label="Queue navigation">
+        <button type="button" data-u-previous aria-label="Previous queue song" title="Previous song">◀</button>
+        <button type="button" data-u-shuffle title="Shuffle songs after the current song">Shuffle</button>
+        <button type="button" data-u-next-button aria-label="Next queue song" title="Next song">▶</button>
+      </div>
+      <button type="button" class="ghost" data-u-clear>Clear queue</button>
     </div>`;
 
   body.prepend(now);
@@ -261,8 +271,11 @@ function buildHeader(planner) {
   });
   head.querySelector('[data-u-export]')?.addEventListener('click', () => proxyButton('exportLibraryBtn'));
   head.querySelector('[data-u-refresh]')?.addEventListener('click', () => {
-    proxyButton('refreshLibraryBtn');
-    window.dispatchEvent(new CustomEvent('piano:unified-refresh-requested'));
+    setStatus('Reloading Piano workspace…', 'countdown');
+    window.location.reload();
+  });
+  now.querySelector('[data-u-view-player]')?.addEventListener('click', () => {
+    document.querySelector('.progress-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
   const workspaceToggle = head.querySelector('[data-u-workspace-toggle]');
@@ -291,24 +304,39 @@ function bindQueueStrip(planner) {
   const mode = planner.querySelector('[data-u-mode]');
   const transition = planner.querySelector('[data-u-transition]');
   const play = planner.querySelector('[data-u-play]');
+  const previous = planner.querySelector('[data-u-previous]');
   const shuffle = planner.querySelector('[data-u-shuffle]');
+  const nextButton = planner.querySelector('[data-u-next-button]');
   const clear = planner.querySelector('[data-u-clear]');
-  const stop = planner.querySelector('[data-u-stop]');
+  const preview = planner.querySelector('[data-u-queue-preview]');
   if (!current || !next || !position || !mode || mode.dataset.bound === '1') return;
   mode.dataset.bound = '1';
 
   const render = () => {
     const queue = window.PianoPlayerQueue;
-    const state = queue?.getState?.() || { items: [], currentId: null, active: false, mode: 'manual', transitionMs: 750 };
-    const index = queuePosition(state);
-    const activeItem = index >= 0 ? state.items[index] : null;
-    const nextItem = index >= 0 ? state.items[index + 1] : state.items[0];
+    const state = queue?.getState?.() || { items: [], currentId: null, active: false, mode: 'ordered', transitionMs: 750 };
+    const currentIndex = state.currentId ? state.items.findIndex(item => String(item.queueId) === String(state.currentId)) : -1;
+    const nextIndex = currentIndex >= 0 ? currentIndex + 1 : Math.min(Number(state.cursor) || 0, state.items.length);
+    const activeItem = currentIndex >= 0 ? state.items[currentIndex] : null;
+    const nextItem = state.items[nextIndex] || null;
+    const shuffleMode = state.mode === 'shuffle';
     current.textContent = activeItem ? labelForQueueItem(activeItem) : (state.items.length ? 'Ready to play' : 'Nothing playing');
-    next.textContent = nextItem && nextItem !== activeItem ? `Next: ${labelForQueueItem(nextItem)}` : (state.items.length ? 'End of queue' : 'Queue is empty');
-    position.textContent = state.items.length ? `${index >= 0 ? index + 1 : 0} / ${state.items.length}` : '0 / 0';
-    mode.value = ['manual', 'ordered', 'shuffle'].includes(state.mode) ? state.mode : 'manual';
+    next.textContent = shuffleMode && nextItem ? 'Next: Random · hover for possibilities' : nextItem ? `Next: ${labelForQueueItem(nextItem)}` : (state.items.length ? 'End of queue · hover for timeline' : 'Queue is empty');
+    position.textContent = state.items.length ? `${currentIndex >= 0 ? currentIndex + 1 : Math.min(Number(state.cursor) || 0, state.items.length)} / ${state.items.length}` : '0 / 0';
+    mode.value = ['manual', 'ordered', 'shuffle'].includes(state.mode) ? state.mode : 'ordered';
     if (transition) transition.value = String(state.transitionMs || 750);
     planner.dataset.queueActive = state.active ? '1' : '0';
+    play.textContent = state.active ? 'Stop queue' : 'Play queue';
+    play.dataset.action = state.active ? 'stop' : 'play';
+    if (previous) previous.disabled = (currentIndex >= 0 ? currentIndex : Number(state.cursor) || 0) <= 0;
+    if (nextButton) nextButton.disabled = nextIndex >= state.items.length;
+    if (preview) renderQueuePreview(preview, {
+      state, currentIndex, nextIndex, labelFor: labelForQueueItem,
+      onPlay: queueId => void withQueue(live => live.playQueueId?.(queueId)),
+      onMove: (queueId, targetId, after) => void withQueue(live => live.reorderQueueId?.(queueId, targetId, after)),
+      onDuplicate: queueId => void withQueue(live => live.duplicateQueueIdAfter?.(queueId)),
+      onRemove: queueId => void withQueue(live => live.removeQueueId?.(queueId))
+    });
   };
 
   const withQueue = async action => {
@@ -327,12 +355,40 @@ function bindQueueStrip(planner) {
     legacy.value = transition.value;
     legacy.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  play?.addEventListener('click', () => void withQueue(queue => queue.playQueue?.()));
+  play?.addEventListener('click', () => void withQueue(queue => queue.toggleQueue?.()));
+  previous?.addEventListener('click', () => void withQueue(queue => queue.previous?.()));
   shuffle?.addEventListener('click', () => void withQueue(queue => queue.shuffleRemaining?.()));
+  nextButton?.addEventListener('click', () => void withQueue(queue => queue.next?.()));
   clear?.addEventListener('click', () => void withQueue(queue => queue.clearQueue?.()));
-  stop?.addEventListener('click', () => {
-    if (!proxyButton('stopBtn')) void withQueue(queue => queue.cancel?.('Player Queue stopped.'));
-  });
+  const revealCurrent = () => {
+    const row = preview?.querySelector('.current, .next, .candidate');
+    if (row && preview) preview.scrollTop = Math.max(0, row.offsetTop - (preview.clientHeight - row.offsetHeight) / 2);
+  };
+  const nextWrap = planner.querySelector('.piano-next-wrap');
+  if (nextWrap && preview) {
+    let closeTimer = null;
+    const keepPreviewOpen = () => {
+      if (closeTimer != null) clearTimeout(closeTimer);
+      closeTimer = null;
+      nextWrap.dataset.previewOpen = '1';
+    };
+    const schedulePreviewClose = () => {
+      if (closeTimer != null) clearTimeout(closeTimer);
+      closeTimer = setTimeout(() => {
+        closeTimer = null;
+        if (!nextWrap.matches(':hover') && !nextWrap.contains(document.activeElement)) {
+          delete nextWrap.dataset.previewOpen;
+        }
+      }, QUEUE_PREVIEW_CLOSE_MS);
+    };
+    nextWrap.addEventListener('pointerenter', () => { keepPreviewOpen(); revealCurrent(); });
+    nextWrap.addEventListener('pointerleave', schedulePreviewClose);
+    nextWrap.addEventListener('focusin', event => {
+      keepPreviewOpen();
+      if (event.target === nextWrap) revealCurrent();
+    });
+    nextWrap.addEventListener('focusout', schedulePreviewClose);
+  }
   window.addEventListener('piano:queue-updated', render);
   window.addEventListener('piano:player-queue-ready', render);
   render();
@@ -356,6 +412,7 @@ async function installUnifiedWorkspace() {
   hideLegacyPanels();
   buildHeader(planner);
   enhanceLibraryBrowserDisclosure(planner);
+  enhanceSongListDisclosure(planner, savedCollapsed, saveCollapsed);
   markVisibleContract(planner);
   bindQueueStrip(planner);
 

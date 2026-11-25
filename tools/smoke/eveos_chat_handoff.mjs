@@ -13,9 +13,11 @@ const PORTS_PATH = path.join(ROOT, 'config', 'eveos-ports.json');
 const MAX_CAPTURE_CHARS = 8 * 1024 * 1024;
 const MAX_FAILURE_LINES = 42;
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+const PRIMARY_BRANCHES = new Set(['main', 'eve/nexus-machine-spaces']);
 
 const PROFILE_SCRIPTS = Object.freeze({
   none: [],
+  affected: ['qualify:affected:timed'],
   fast: ['test:smoke'],
   deep: ['test:deep'],
   security: ['test:security'],
@@ -169,12 +171,11 @@ function environmentSnapshot(base, fetchResult) {
   };
 }
 
-function npmCommand(script, env, timeout) {
+function npmCommand(script, env, timeout, args = []) {
   const command = process.platform === 'win32' ? (process.env.ComSpec || 'cmd.exe') : 'npm';
-  const args = process.platform === 'win32'
-    ? ['/d', '/s', '/c', `npm run --silent ${script}`]
-    : ['run', '--silent', script];
-  return run(command, args, { env, timeout });
+  const npmArgs = ['run', '--silent', script, ...args];
+  return run(command, process.platform === 'win32' ? ['/d', '/s', '/c', `npm ${npmArgs.join(' ')}`] : npmArgs,
+    { env, timeout });
 }
 
 function relevantFailureLines(output) {
@@ -215,7 +216,9 @@ function renderTextReport(report, artifacts = {}) {
   const lines = [
     'EVEOS_CHAT_HANDOFF',
     `HEAD ${env.head || 'unknown'}`,
-    `ORIGIN_MAIN ${env.originMain || 'unknown'} (${env.syncedToOriginMain ? 'aligned' : 'MISMATCH'})`,
+    env.scopeOrigin
+      ? `ORIGIN ${env.scopeOrigin.ref} ${env.scopeOrigin.head || 'unknown'} (${env.scopeOrigin.ancestor ? 'ancestor' : 'MISMATCH'})`
+      : `ORIGIN_MAIN ${env.originMain || 'unknown'} (${env.syncedToOriginMain ? 'aligned' : 'MISMATCH'})`,
     `WORKTREE ${env.worktreeClean ? 'clean' : 'DIRTY'}`,
     `ENV ${env.platform}/${env.arch} | ${env.node || 'node?'} | ${env.python || 'python?'} | Playwright ${env.playwright || '?'}`,
     `PLAN ${report.plan.join(' -> ') || '(none)'}`,
@@ -245,10 +248,10 @@ function renderTextReport(report, artifacts = {}) {
 
 function buildPlan(args, scripts) {
   const explicit = argValues(args, '--script');
-  const profileDefault = explicit.length ? 'none' : 'fast';
+  const profileDefault = explicit.length || args.includes('--final') ? 'none' : 'affected';
   const profile = argValue(args, '--profile', profileDefault).toLowerCase();
   if (!Object.hasOwn(PROFILE_SCRIPTS, profile)) {
-    throw new Error(`Unknown profile '${profile}'. Use none, fast, deep, security, or ai-control.`);
+    throw new Error(`Unknown profile '${profile}'. Use affected, none, fast, deep, security, or ai-control.`);
   }
   const plan = [];
   if (profile === 'none' && explicit.length) plan.push('test:guardrails');
@@ -256,7 +259,7 @@ function buildPlan(args, scripts) {
   if (args.includes('--final')) plan.push('verify');
   const deduped = [...new Set(plan)];
   for (const script of deduped) {
-    if (!scripts[script]) throw new Error(`Unknown npm script '${script}'.`);
+    if (!Object.hasOwn(scripts, script)) throw new Error(`Unknown npm script '${script}'.`);
   }
   return { profile, plan: deduped };
 }
@@ -265,27 +268,53 @@ function main() {
   const args = process.argv.slice(2);
   const scripts = packageScripts();
   const { profile, plan } = buildPlan(args, scripts);
-  const base = argValue(args, '--base', '');
+  const scoped = profile === 'affected';
+  const compareCurrentBranch = scoped || (plan.length === 1 && plan[0] === 'verify');
+  let base = argValue(args, '--base', '');
   const verbose = args.includes('--verbose') || args.includes('-v');
   const planOnly = args.includes('--plan');
   const fetchResult = planOnly ? { ok: true, skipped: true } : fetchOrigin();
+  const branch = git(['branch', '--show-current']);
+  const originRef = `refs/remotes/origin/${branch}`;
+  const scopeOrigin = compareCurrentBranch ? {ref: originRef, head: git(['rev-parse', '--verify', originRef])} : null;
+  if (scoped) {
+    const ref = base || scopeOrigin.head || 'HEAD';
+    base = git(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+    if (!/^[0-9a-f]{40}$/i.test(base)) throw new Error(`Invalid affected base '${ref}'.`);
+  }
+  if (scopeOrigin) scopeOrigin.ancestor = Boolean(scopeOrigin.head &&
+    run('git', ['merge-base', '--is-ancestor', scopeOrigin.head, 'HEAD'], {timeout: 60_000}).status === 0);
   const environment = environmentSnapshot(base, fetchResult);
+  if (scopeOrigin) environment.scopeOrigin = scopeOrigin;
+  const scopedArgs = ['--', '--base', base, ...(args.includes('--fresh') ? ['--fresh'] : [])];
 
   if (planOnly) {
     console.log('EVEOS CHAT HANDOFF PLAN');
     console.log(`HEAD ${environment.head || 'unknown'}`);
     console.log(`PROFILE ${profile}`);
     console.log(`RUN ${plan.join(' -> ') || '(none)'}`);
-    if (environment.changedFiles.length) console.log(`CHANGED ${environment.changedFiles.join(', ')}`);
+    if (scoped) {
+      const preview = npmCommand('qualify:affected:timed', process.env, 30_000, [...scopedArgs, '--plan']);
+      if (preview.status !== 0) throw new Error(preview.stderr || preview.error || 'Affected plan failed.');
+      const affected = JSON.parse(preview.stdout);
+      console.log(`AFFECTED ${affected.gates.map(gate => gate.label).join(' -> ')}`);
+      console.log(`BASE ${base}`);
+      if (affected.metadata.changedFiles.length) console.log(`CHANGED ${affected.metadata.changedFiles.join(', ')}`);
+    } else if (environment.changedFiles.length) console.log(`CHANGED ${environment.changedFiles.join(', ')}`);
     return;
   }
 
-  if (environment.branch !== 'main' && !args.includes('--allow-branch')) {
-    console.error(`EVEOS CHAT HANDOFF REFUSED: expected branch main, found '${environment.branch || 'unknown'}'. Use --allow-branch only when intentional.`);
+  if (!(compareCurrentBranch ? PRIMARY_BRANCHES.has(environment.branch) : environment.branch === 'main') && !args.includes('--allow-branch')) {
+    const expected = compareCurrentBranch ? [...PRIMARY_BRANCHES].join(' or ') : 'main';
+    console.error(`EVEOS CHAT HANDOFF REFUSED: expected ${expected}, found '${environment.branch || 'unknown'}'. Use --allow-branch only when intentional.`);
     process.exit(2);
   }
 
-  if (environment.fetchOrigin?.ok && !environment.syncedToOriginMain && !args.includes('--allow-diverged')) {
+  if (scopeOrigin && (!fetchResult.ok || !scopeOrigin.ancestor) && !args.includes('--allow-diverged')) {
+    console.error(`EVEOS CHAT HANDOFF REFUSED: ${originRef} must be fetched and be an ancestor of HEAD.`);
+    process.exit(2);
+  }
+  if (!scopeOrigin && environment.fetchOrigin?.ok && !environment.syncedToOriginMain && !args.includes('--allow-diverged')) {
     console.error('EVEOS CHAT HANDOFF REFUSED: local HEAD does not match freshly fetched origin/main.');
     console.error(`  HEAD        ${environment.head || 'unknown'}`);
     console.error(`  origin/main ${environment.originMain || 'unknown'}`);
@@ -304,7 +333,8 @@ function main() {
   const results = [];
   const outputs = [];
   for (const script of plan) {
-    const result = npmCommand(script, { ...process.env, EVEOS_CHAT_HANDOFF: '1', EVEOS_CHAT_TEST_TIMEOUT_MS: String(timeoutMs) }, timeoutMs);
+    const result = npmCommand(script, { ...process.env, EVEOS_CHAT_HANDOFF: '1', EVEOS_CHAT_TEST_TIMEOUT_MS: String(timeoutMs) },
+      timeoutMs, scoped && script === 'qualify:affected:timed' ? scopedArgs : []);
     const output = [result.stdout, result.stderr, result.error].filter(Boolean).join('\n');
     const item = {
       script,

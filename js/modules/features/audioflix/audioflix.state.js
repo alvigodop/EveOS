@@ -56,10 +56,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     const { text, normalizeVolume, id, bool } = window.EveAudioflixStateSchema;
 
-    // Per-item cleaners live in a sibling module (audioflix.state.schema.js) so this store stays
-    // under the line cap; they run against the same coerce/clamp/id primitives.
-    const { cleanItem, cleanPort, boundedItems, boundedBindings } = window.EveAudioflixStateSchema.create({ text, normalizeVolume, id });
-
+    // Per-item cleaners live in a sibling module and share these coerce/clamp/id primitives.
+    const { cleanItem, cleanPort, boundedItems, boundedBindings, cleanPlaybackPolicy, cleanScopePolicies } = window.EveAudioflixStateSchema.create({ text, normalizeVolume, id });
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
         const tree = window.EveAudioflixGroupTree;
@@ -70,6 +68,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const legacyMusicFocus = text(source.activeFrontendMusicGroup, '');
         const legacyArtist = legacyMusicFocus.startsWith('smart:artist:') ? legacyMusicFocus : '';
         const legacyClassifier = legacyMusicFocus.startsWith('class:') ? legacyMusicFocus : '';
+        const soundboard = boundedItems(source.soundboard, 'sound', MAX_SOUNDBOARD), music = boundedItems(source.music, 'music');
+        const incomingHotkeys = source.portHotkeys && typeof source.portHotkeys === 'object' && !Array.isArray(source.portHotkeys) ? { ...source.portHotkeys } : {}, catalogHotkeys = { ...incomingHotkeys }; for (const item of [...soundboard, ...music]) if (item.hotkey && !(item.id in catalogHotkeys)) catalogHotkeys[item.id] = item.hotkey;
+        const portHotkeys = window.EveAudioflixHotkeyJournal?.reconcile?.(catalogHotkeys) || catalogHotkeys;
+        for (const item of [...soundboard, ...music]) {
+            if (portHotkeys[item.id] === null) item.hotkey = ''; // Explicit per-item clear tombstone.
+            else if (text(portHotkeys[item.id], '')) item.hotkey = text(portHotkeys[item.id], '');
+            else if (item.hotkey) portHotkeys[item.id] = item.hotkey;
+        }
         return {
             schemaVersion: 3, durabilityRevision: Math.max(0, Number(source.durabilityRevision || 0) || 0), durabilityUpdatedAt: Math.max(0, Number(source.durabilityUpdatedAt || 0) || 0),
             enabled: source.enabled !== false, outputVolume: normalizeVolume(source.outputVolume, 1),
@@ -97,8 +103,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 ? (source.geminiConversationMode === 'direct-live' ? 'direct-live' : 'text-brain-live-voice')
                 : 'text-brain-live-voice',
             geminiModeDefaultV2Applied: true,
-            soundboard: boundedItems(source.soundboard, 'sound', MAX_SOUNDBOARD),
-            music: boundedItems(source.music, 'music'),
+            soundboard,
+            music,
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
             browserFolders: (Array.isArray(source.browserFolders) ? source.browserFolders : [])
@@ -111,7 +117,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 .filter((folder) => !!folder.id),
             portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
             exposedPortedSounds: source.exposedPortedSounds && typeof source.exposedPortedSounds === 'object' ? source.exposedPortedSounds : {},
-            portHotkeys: source.portHotkeys && typeof source.portHotkeys === 'object' ? source.portHotkeys : {},
+            portHotkeys,
             soundboardViewMode: ['backend', 'frontend'].includes(source.soundboardViewMode) ? source.soundboardViewMode : 'backend',
             soundboardGroups,
             soundGroupParents: tree?.normalizeParents?.(soundboardGroups, source.soundGroupParents) || (source.soundGroupParents && typeof source.soundGroupParents === 'object' ? source.soundGroupParents : {}),
@@ -179,7 +185,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 ? Object.fromEntries(Object.entries(source.localizeScopeDirs).map(([k, v]) => [text(k), text(v)]).filter(([k, v]) => k && v))
                 : {},
             scopeBindings: boundedBindings(source.scopeBindings, MAX_SCOPE_BINDINGS),
-            hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
+            playbackPolicy: cleanPlaybackPolicy(source.playbackPolicy, { global: true }), playbackScopePolicies: cleanScopePolicies(source.playbackScopePolicies),
+            hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''), hotkeyTransportCombo: text(source.hotkeyTransportCombo, ''), lastAudioflixTab: ['soundboard', 'music', 'piano', 'soundlab', 'router'].includes(source.lastAudioflixTab) ? source.lastAudioflixTab : 'soundboard',
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0
@@ -192,6 +199,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         if (!root) {
             if (!fallbackState) {
                 fallbackState = normalize(fallbackRead());
+                fallbackState = window.EveAudioflixStateRecovery?.restoreStructure?.(STORAGE_KEY, fallbackState) || fallbackState;
                 revision += 1;
             }
             return fallbackState;
@@ -247,7 +255,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const state = ensure();
         Object.assign(state, patch || {});
         if (['music', 'soundboard', 'musicGroupMap', 'soundGroupMap'].some(key => Object.prototype.hasOwnProperty.call(patch || {}, key))) window.EveAudioflixLibraryIndex.invalidate(state);
-        const next = syncRootOrFallback(state);
+        const next = syncRootOrFallback(state); if (Object.prototype.hasOwnProperty.call(patch || {}, 'lastAudioflixTab')) window.EveAudioflixStateRecovery?.writeStructure?.(STORAGE_KEY, next);
         scheduleSave(reason);
         return next;
     }
@@ -263,7 +271,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     }
 
     function replaceDatapackState(rawState, reason) {
-        if (rawState && typeof rawState === 'object') return replaceState(rawState, reason, { authoritative: true });
+        if (rawState && typeof rawState === 'object') { const old = ensure(), preserved = { ...(old.portHotkeys || {}) };
+            for (const [id, combo] of Object.entries(rawState.portHotkeys || {})) if (text(combo, '') || combo === null) preserved[id] = combo;
+            return replaceState({ ...rawState, portHotkeys: preserved, lastAudioflixTab: rawState.lastAudioflixTab || old.lastAudioflixTab }, reason, { authoritative: true }); }
         const current = ensure();
         return replaceState(Object.assign({}, current, {
             soundboard: [],
@@ -293,6 +303,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             localizeDir: '',
             localizeScopeDirs: {},
             scopeBindings: [],
+            playbackPolicy: cleanPlaybackPolicy({}, { global: true }), playbackScopePolicies: {},
             counters: Object.assign({}, current.counters, { plays: 0 })
         }), reason, { authoritative: true });
     }
@@ -379,14 +390,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
-    function setItemHotkey(type, itemId, hotkey) {
-        const state = ensure();
-        const key = type === 'music' ? 'music' : 'soundboard';
+    function setItemHotkey(type, itemId, hotkey, options = {}) {
+        const state = ensure(), combo = text(hotkey, '').toLowerCase();
+        if (!combo && options.explicitClear !== true) return state;
         const entry = window.EveAudioflixLibraryIndex.get(state, type).getById(itemId);
-        if (entry) entry.hotkey = hotkey;
-        state.portHotkeys = state.portHotkeys || {};
-        state.portHotkeys[itemId] = hotkey;
-        scheduleSave('audioflix-hotkey');
+        if (entry) entry.hotkey = combo;
+        state.portHotkeys = state.portHotkeys || {}; state.portHotkeys[itemId] = combo || null;
+        window.EveAudioflixHotkeyJournal?.record?.(itemId, combo || null);
+        window.EveAudioflixStateRecovery?.writeStructure?.(STORAGE_KEY, state); scheduleSave('audioflix-hotkey');
         return ensure();
     }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Piano Auto Player</title>
+  <title>Piano Auto Player - Backend</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">LOCALHOST STUDIO</p>
-        <h1>Piano Auto Player</h1>
+        <h1>Piano Auto Player - Backend</h1>
         <p class="sub">Find a sheet across multiple hosts, paste one manually, or record your own performance with exact timing.</p>
       </div>
       <div class="status-chip" id="statusChip" data-state="idle"><span class="dot"></span><span id="statusText">Ready</span></div>
@@ -23,23 +23,28 @@
           <div><p class="eyebrow">SHEET PLAYER</p><input id="titleInput" class="title-input" value="Untitled sheet" aria-label="Song title"></div>
           <button class="ghost" id="saveSongBtn">Save song</button>
         </div>
-        <div class="progress-wrap">
-          <div class="progress-track" title="Drag to seek to an event">
-            <div id="progressBar" class="progress-bar"></div>
-            <input id="eventSeekRange" class="progress-seek" type="range" min="1" max="1" value="1" step="1" aria-label="Seek by event">
+        <details class="event-view-disclosure">
+          <summary><span><strong>EVENT VIEW + SHEET</strong><small>Seek, inspect, or edit this performance.</small></span></summary>
+          <div class="event-view-body">
+            <div class="progress-wrap">
+              <div class="progress-track" title="Drag to seek to an event">
+                <div id="progressBar" class="progress-bar"></div>
+                <input id="eventSeekRange" class="progress-seek" type="range" min="1" max="1" value="1" step="1" aria-label="Seek by event">
+              </div>
+              <div class="progress-meta"><span id="progressText">0 / 0 events</span><span id="currentToken">—</span></div>
+              <div class="seek-controls">
+                <button type="button" id="seekStartBtn" title="First event">↤</button>
+                <button type="button" data-seek-delta="-100">−100</button><button type="button" data-seek-delta="-10">−10</button><button type="button" data-seek-delta="-1">−1</button>
+                <label class="seek-number"><span>Event</span><input id="eventSeekInput" type="number" min="1" value="1" step="1"><b id="eventSeekTotal">/ 0</b></label>
+                <button type="button" id="seekGoBtn" class="primary">Go</button>
+                <button type="button" data-seek-delta="1">+1</button><button type="button" data-seek-delta="10">+10</button><button type="button" data-seek-delta="100">+100</button>
+                <button type="button" id="seekEndBtn" title="Last event">↦</button>
+              </div>
+            </div>
+            <textarea id="sheetInput" spellcheck="false" placeholder="Paste a piano sheet here…\n\nExample: t r w [4o] p s g f d -- [1o] u i o"></textarea>
+            <div class="sheet-stats" id="sheetStats"><span>0 events</span><span>0 notes</span><span>0 chords</span><span>0 pauses</span></div>
           </div>
-          <div class="progress-meta"><span id="progressText">0 / 0 events</span><span id="currentToken">—</span></div>
-          <div class="seek-controls">
-            <button type="button" id="seekStartBtn" title="First event">↤</button>
-            <button type="button" data-seek-delta="-100">−100</button><button type="button" data-seek-delta="-10">−10</button><button type="button" data-seek-delta="-1">−1</button>
-            <label class="seek-number"><span>Event</span><input id="eventSeekInput" type="number" min="1" value="1" step="1"><b id="eventSeekTotal">/ 0</b></label>
-            <button type="button" id="seekGoBtn" class="primary">Go</button>
-            <button type="button" data-seek-delta="1">+1</button><button type="button" data-seek-delta="10">+10</button><button type="button" data-seek-delta="100">+100</button>
-            <button type="button" id="seekEndBtn" title="Last event">↦</button>
-          </div>
-        </div>
-        <textarea id="sheetInput" spellcheck="false" placeholder="Paste a piano sheet here…\n\nExample: t r w [4o] p s g f d -- [1o] u i o"></textarea>
-        <div class="sheet-stats" id="sheetStats"><span>0 events</span><span>0 notes</span><span>0 chords</span><span>0 pauses</span></div>
+        </details>
         <div class="transport">
           <button class="primary" id="playBtn">▶ Play</button><button id="pauseBtn">Ⅱ Pause</button><button class="danger" id="stopBtn">■ Stop</button>
           <label class="check"><input type="checkbox" id="dryRun"> Dry run</label>
@@ -56,7 +61,7 @@
         </details>
         <label class="field"><span>Input route</span><select id="inputMode"><option value="foreground">Foreground — reliable</option><option value="virtual_target">Virtual Target — no foreground steal (experimental)</option></select></label>
         <label class="field"><span>Piano layout</span><select id="pianoLayout"><option value="61">61-key — C2–C7 (standard)</option><option value="88">88-key — A0–C8 (Ctrl extensions)</option></select></label>
-        <label class="field"><span>Internal piano sound <b id="pianoSoundStatus">sampled</b></span><select id="pianoSound"><option value="acoustic_grand">Acoustic Grand Piano</option><option value="bright_acoustic">Bright Acoustic Piano</option><option value="electric_grand">Electric Grand Piano</option><option value="honky_tonk">Honky-tonk Piano</option><option value="legacy_synth">Legacy Synth (offline)</option></select><small>Sampled presets load from the web on first use; Legacy Synth stays fully offline.</small></label>
+        <label class="field"><span>Internal piano sound <b id="pianoSoundStatus">sampled</b></span><select id="pianoSound"><option value="fluid_studio_grand">Studio Grand Piano (FluidR3)</option><option value="acoustic_grand" selected>Acoustic Grand Piano</option><option value="bright_acoustic">Bright Acoustic Piano</option><option value="fluid_electric_piano_1">Electric Piano 1 (FluidR3)</option><option value="fluid_electric_piano_2">Electric Piano 2 (FluidR3)</option><option value="electric_grand">Electric Grand Piano</option><option value="honky_tonk">Honky-tonk Piano</option><option value="legacy_synth">Legacy Synth (offline)</option></select><small>Sampled presets load from the web on first use; Legacy Synth stays fully offline.</small></label>
         <label class="check wide"><input type="checkbox" id="autoFocus" checked> Auto-focus target before playback</label>
         <label class="field"><span>Sheet timing unit <b id="intervalValue">115 ms</b></span><input type="range" id="intervalRange" min="25" max="500" value="115" step="5"></label>
         <label class="field"><span>Base key hold <b id="holdValue">18 ms</b></span><input type="range" id="holdRange" min="2" max="100" value="18" step="1"></label>

@@ -19,8 +19,9 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/storage.runtime.backend.js?v=4c9f151b25d6",
     "js/modules/core/storage.runtime.io.js?v=cdf481bdd3fd",
     "js/modules/core/storage.delta.js?v=e84da1a3101d",
-    "js/modules/core/storage.js?v=62ecfa090af5",
-    "js/modules/core/storage.load.js?v=68b9bc3c47de",
+    "js/modules/core/workspace-metadata-guard.js?v=5d0170368c91",
+    "js/modules/core/storage.js?v=b19e04f8e024",
+    "js/modules/core/storage.load.js?v=4794e9df4d06",
     "js/modules/features/edit-history/edit-history.capture.js?v=13e1a9d5e433",
     "js/modules/features/edit-history/edit-history.core.js?v=00099843e259",
     "js/modules/features/edit-history/edit-history.config.js?v=6f56fd6f7c7c",
@@ -200,6 +201,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/tab-nav-history.js?v=f1c7f16f94e3",
     "js/modules/core/categories.shared.js?v=3f20e27ee797",
     "js/modules/core/categories.move.js?v=6b8d0a9e2478",
-    "js/modules/core/categories.ui.js?v=c4807b835fc5",
+    "js/modules/core/card-launch-scope.js?v=7dd1f25fcdfb",
+    "js/modules/core/categories.ui.js?v=7b888bba852e",
     "js/modules/core/categories.js?v=602d5ed51798"
 ]);

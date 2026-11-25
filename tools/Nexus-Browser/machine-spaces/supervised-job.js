@@ -16,15 +16,22 @@ function createSupervisedJobCoordinator(options = {}) {
   const idFactory = typeof options.idFactory === 'function' ? options.idFactory : () => randomUUID();
   const leaseTtlMs = Math.max(5000, Number(options.leaseTtlMs) || 120000);
   const maxJobs = Math.max(16, Number(options.maxJobs) || 256);
+  const store = options.store || null;
   const jobs = new Map();
   const requestIndex = new Map();
   const events = [];
   let sequence = 0;
+  const restartSettlements = [];
 
   function stamp() { return new Date(now()).toISOString(); }
+  function persist() {
+    if (!store?.save) return;
+    store.save({ version: 1, sequence, jobs: [...jobs.values()].map(publicJob), events: events.map(clone) });
+  }
   function record(type, job, extra = {}) {
     events.push({ sequence: ++sequence, type, at: stamp(), jobId: job.jobId, requestId: job.requestId, ...clone(extra) });
     if (events.length > 2000) events.splice(0, events.length - 2000);
+    persist();
   }
   function exact(jobId) {
     const job = jobs.get(text(jobId));
@@ -41,6 +48,7 @@ function createSupervisedJobCoordinator(options = {}) {
         leaseId: job.lease.leaseId, holderSessionId: job.lease.holderSessionId,
         expiresAt: job.lease.expiresAt, generation: job.lease.generation
       } : null,
+      authorization: job.authorization || null,
       result: job.result, errorCode: job.errorCode, reason: job.reason,
       reboundCount: job.reboundCount, leaseGeneration: job.leaseGeneration
     });
@@ -77,10 +85,36 @@ function createSupervisedJobCoordinator(options = {}) {
       ownerMemberId: text(input.ownerMemberId) || null,
       targetId, processEpoch, commandDigest: text(input.commandDigest) || null,
       createdAt: stamp(), startedAt: null, deferredAt: null, finishedAt: null,
-      lease: null, leaseGeneration: 0, result: null, errorCode: null, reason: null, reboundCount: 0
+      lease: null, leaseGeneration: 0, authorization: null,
+      result: null, errorCode: null, reason: null, reboundCount: 0
     };
     jobs.set(job.jobId, job); requestIndex.set(requestId, job.jobId); prune();
     record('created', job);
+    return publicJob(job);
+  }
+
+  function authorize(jobId, input = {}) {
+    const job = exact(jobId);
+    if (job.state !== 'queued') throw makeError('MACHINE_JOB_STATE_CONFLICT', `Job ${job.jobId} is ${job.state}, not queued.`);
+    const method = text(input.method), approvalDigest = text(input.approvalDigest);
+    if (!method) throw makeError('MACHINE_JOB_AUTHORIZATION_REQUIRED', 'Supervised job authorization provenance is required.');
+    const next = {
+      method,
+      sourceMessageId: text(input.sourceMessageId) || null,
+      approvalDigest: approvalDigest || null,
+      workflow: clone(input.workflow || null),
+      authorizedAt: stamp()
+    };
+    if (job.authorization) {
+      const same = job.authorization.method === next.method
+        && job.authorization.sourceMessageId === next.sourceMessageId
+        && job.authorization.approvalDigest === next.approvalDigest
+        && JSON.stringify(job.authorization.workflow || null) === JSON.stringify(next.workflow);
+      if (!same) throw makeError('MACHINE_JOB_AUTHORIZATION_CONFLICT', 'This queued job already has different authorization provenance.');
+      return publicJob(job);
+    }
+    job.authorization = next;
+    record('authorized', job, { ...next });
     return publicJob(job);
   }
 
@@ -107,6 +141,8 @@ function createSupervisedJobCoordinator(options = {}) {
       if (job.state === 'running' && leaseValid(job, input.leaseId, input.sessionId)) return publicJob(job);
       throw makeError('MACHINE_JOB_STATE_CONFLICT', `Job ${job.jobId} is ${job.state}, not queued.`);
     }
+    if (!job.authorization)
+      throw makeError('MACHINE_JOB_AUTHORIZATION_REQUIRED', 'Supervised job cannot start without recorded owner authorization.');
     if (text(input.targetId || job.targetId) !== job.targetId || text(input.processEpoch || job.processEpoch) !== job.processEpoch)
       throw makeError('MACHINE_JOB_TARGET_EPOCH_MISMATCH', 'Managed terminal identity changed before supervised job start.');
     const sessionId = text(input.sessionId);
@@ -190,7 +226,36 @@ function createSupervisedJobCoordinator(options = {}) {
   function status(jobId) { return publicJob(exact(jobId)); }
   function snapshot() { return { version: 1, jobs: [...jobs.values()].map(publicJob), events: events.map(clone) }; }
 
-  return { create, start, defer, rebound, settle, cancel, terminalizeForSession, terminalizeForTarget, status, snapshot };
+  function restore() {
+    const saved = store?.load?.();
+    if (!saved || !Array.isArray(saved.jobs)) return;
+    if (Array.isArray(saved.events)) events.push(...saved.events.slice(-2000).map(clone));
+    sequence = Math.max(Number(saved.sequence) || 0, ...events.map((entry) => Number(entry.sequence) || 0), 0);
+    for (const raw of saved.jobs.slice(-maxJobs)) {
+      if (!raw?.jobId || !raw?.requestId || !raw?.targetId || !raw?.processEpoch) continue;
+      const job = { ...clone(raw), lease: null };
+      if (job.state === 'queued') {
+        job.state = 'cancelled'; job.reason = 'nexus-restarted-before-dispatch';
+        job.errorCode = 'MACHINE_JOB_RESTARTED_BEFORE_DISPATCH'; job.finishedAt = stamp();
+        restartSettlements.push(job);
+      } else if (job.state === 'running' || job.state === 'deferred') {
+        job.state = 'outcome-unknown'; job.reason = 'nexus-restarted-during-supervised-execution';
+        job.errorCode = 'MACHINE_JOB_RESTART_OUTCOME_UNKNOWN'; job.finishedAt = stamp();
+        restartSettlements.push(job);
+      }
+      jobs.set(job.jobId, job); requestIndex.set(job.requestId, job.jobId);
+    }
+    if (restartSettlements.length) {
+      for (const job of restartSettlements) events.push({ sequence: ++sequence, type: 'restart-reconciled',
+        at: stamp(), jobId: job.jobId, requestId: job.requestId, state: job.state, errorCode: job.errorCode });
+      persist();
+    }
+  }
+  function recovered() { return restartSettlements.map(publicJob); }
+  restore();
+
+  return { create, authorize, start, defer, rebound, settle, cancel, terminalizeForSession, terminalizeForTarget,
+    status, snapshot, recovered };
 }
 
 module.exports = { TERMINAL_STATES, ACTIVE_STATES, createSupervisedJobCoordinator };

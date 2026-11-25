@@ -13,9 +13,15 @@
     const HEARTBEAT_MS = 15000;
     const RECONNECT_MS = 2500;
     const LOCAL_MOE_MESSAGE_TYPE = 'eveos:local-moe-workspace-event';
-    const workspaceId = window.crypto?.randomUUID?.()
-        ? `search-monitor-${window.crypto.randomUUID()}`
-        : `search-monitor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const RUNTIME_STATE_EVENT = 'eveos:nexus-browser-runtime';
+    const workspaceStorageKey = 'eveos:tlo-workspace-id:v1';
+    let workspaceId = '';
+    try { workspaceId = String(window.sessionStorage?.getItem(workspaceStorageKey) || ''); } catch {}
+    if (!/^search-monitor-[A-Za-z0-9-]{8,160}$/.test(workspaceId)) {
+        workspaceId = window.crypto?.randomUUID?.() ? `search-monitor-${window.crypto.randomUUID()}`
+            : `search-monitor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        try { window.sessionStorage?.setItem(workspaceStorageKey, workspaceId); } catch {}
+    }
 
     let socket = null;
     let registered = false;
@@ -27,12 +33,16 @@
     function nexusBase() {
         const registry = window.EveOSPortRegistry?.url?.('NEXUS_BROWSER_PORT');
         if (registry) return registry;
+        const runtime = window.EveOSNexusBrowser?.runtimeSnapshot?.();
+        if (runtime?.url) return runtime.url;
         const frame = document.querySelector?.('[data-nexus-browser-frame]');
         const src = frame?.getAttribute?.('src') || '';
         return src && src !== 'about:blank' ? src : 'http://127.0.0.1:8768';
     }
 
     function runtimeOnline() {
+        const runtime = window.EveOSNexusBrowser?.runtimeSnapshot?.();
+        if (runtime && typeof runtime.running === 'boolean') return runtime.running;
         const frame = document.querySelector?.('[data-nexus-browser-frame]');
         const src = String(frame?.getAttribute?.('src') || '').trim();
         return !!src && src !== 'about:blank';
@@ -117,6 +127,7 @@
     async function sendTloRequest(message) {
         const requestId = String(message.requestId || '');
         const tlo = window.EveOSTloChat;
+        let capabilityContext = null;
         if (!tlo?.sendWorkspaceMessage) {
             const error = new Error('The TLO Search Monitor workspace is not mounted.');
             error.code = 'TLO_WORKSPACE_UNAVAILABLE';
@@ -126,9 +137,12 @@
             requestId,
             onPartial(text) {
                 serviceEvent('service_workspace_partial', TLO_TARGET, requestId, { text: String(text || '') });
-            }
+            },
+            onContext(value) { capabilityContext = value; }
         });
-        serviceEvent('service_workspace_final', TLO_TARGET, requestId, { text: String(finalText || '') });
+        serviceEvent('service_workspace_final', TLO_TARGET, requestId, {
+            text: String(finalText || ''), ...(capabilityContext ? { capabilityContext } : {})
+        });
     }
 
     async function handleWorkspaceRequest(message) {
@@ -156,6 +170,25 @@
         }
     }
 
+    async function handleTloHistoryControl(message) {
+        if (String(message.workspaceId || '') !== workspaceId) return;
+        const requestId = String(message.requestId || ''), challenge = String(message.challenge || '');
+        try {
+            const tlo = window.EveOSTloChat;
+            if (!requestId || challenge.length < 24 || !tlo) throw new Error('TLO history control is invalid.');
+            const operation = message.type === 'service_workspace_tlo_history_export'
+                ? 'exportWorkspaceHistory' : 'hydrateWorkspaceHistory';
+            if (typeof tlo[operation] !== 'function') throw new Error('TLO history control is unavailable.');
+            const result = await tlo[operation](message.payload || {});
+            send({ type: 'service_workspace_tlo_history_result', workspaceId, requestId,
+                challenge, operation, ok: true, result });
+        } catch (error) {
+            send({ type: 'service_workspace_tlo_history_result', workspaceId, requestId,
+                challenge, ok: false, code: error?.code || 'TLO_HISTORY_CONTROL_FAILED',
+                error: error?.message || String(error) });
+        }
+    }
+
     function handleSocketMessage(event) {
         let message;
         try { message = JSON.parse(String(event.data || '')); }
@@ -175,6 +208,10 @@
         }
         if (message.type === 'service_workspace_request') {
             handleWorkspaceRequest(message);
+            return;
+        }
+        if (['service_workspace_tlo_history_export', 'service_workspace_tlo_history_hydrate'].includes(message.type)) {
+            handleTloHistoryControl(message);
         }
     }
 
@@ -273,6 +310,7 @@
     }
 
     window.addEventListener?.('message', handleLocalMoeMessage);
+    window.addEventListener?.(RUNTIME_STATE_EVENT, syncRuntimeState);
     window.addEventListener?.('beforeunload', disconnect, { once: true });
 
     const runtimeObserver = new MutationObserver(function (records) {
@@ -304,7 +342,7 @@
         isEnabled: () => enabled
     });
 
-    // Passive on Search Monitor boot. Nexus Browser mounting/unmounting its runtime iframe
-    // is the authority that enables or tears down this service-chat WebSocket.
+    // Passive on Search Monitor boot. The lifecycle controller's verified runtime state is
+    // authoritative; embedded/detached iframe presentation must not tear down active turns.
     window.setTimeout(syncRuntimeState, 0);
 })();

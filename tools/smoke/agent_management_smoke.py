@@ -17,8 +17,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server_modules import agent_management_api as api  # noqa: E402
+from server_modules import agent_document_library as documents  # noqa: E402
 from server_modules import agent_management_store as store, tlo_definition  # noqa: E402
-from server_modules import tlo_chat  # noqa: E402
+from server_modules import agent_capability_registry, tlo_chat  # noqa: E402
 
 
 def require(condition, message):
@@ -76,7 +77,8 @@ def run():
         backup_path = Path(temporary) / "agents.backup.json"
         definition_path = Path(temporary) / "tlo" / "AGENT.md"
         with patch.object(store, "STORE_PATH", live_path), patch.object(store, "BACKUP_PATH", backup_path), \
-                patch.object(tlo_definition, "LIVE_PATH", definition_path):
+                patch.object(tlo_definition, "LIVE_PATH", definition_path), \
+                patch.object(documents, "OVERRIDES", Path(temporary) / "documents"):
             initial, persisted = store.load_store()
             require(not persisted and [agent["id"] for agent in initial["agents"]] == ["tlo"],
                     "Missing safe non-persisted TLO bootstrap profile")
@@ -95,8 +97,11 @@ def run():
             encoded = json.dumps(projection, sort_keys=True)
             require(projection["agent"]["id"] == tlo["id"] and "TLO_SCOPE_SENTINEL" in encoded,
                     "Requested TLO scope was not projected")
-            for forbidden in ["TLO_PRIVATE_SENTINEL", "EVE_PRIVATE_SENTINEL", "EVE_SCOPE_SENTINEL", "permissions"]:
-                require(forbidden not in encoded, f"Projection leaked forbidden field/value: {forbidden}")
+            for forbidden in ["TLO_PRIVATE_SENTINEL", "EVE_PRIVATE_SENTINEL", "EVE_SCOPE_SENTINEL"]:
+                require(forbidden not in encoded, f"Projection leaked forbidden value: {forbidden}")
+            require(all("permissions" not in part for part in
+                        (projection, projection["agent"], projection["scope"])),
+                    "Projection leaked forbidden permissions field")
             require("Identity for TLO" in projection["agent"]["definition"],
                     "Legacy authored identity was not preserved before file save")
             require(not definition_path.exists(), "Projection read should not write private state")
@@ -111,10 +116,49 @@ def run():
                     "Definition source/revision/metadata contract was not projected")
             require("FILE_BACKED_SENTINEL" in prompt and "Identity for TLO" not in prompt,
                     "File-backed definition did not become sole active TLO identity")
-            require("I am no longer just a chat box" in tlo_definition.load(tlo)["origin"] and
-                    "I am no longer just a chat box" not in prompt,
+            origin_heading = tlo_definition.load(tlo)["origin"].splitlines()[0]
+            require(origin_heading == "# TLO — public creation context" and origin_heading not in prompt,
                     "Origin metadata was lost or injected into the boot prompt")
             require("TLO_PRIVATE_SENTINEL" not in prompt, "Private notes leaked into boot context")
+            require("Machine Spaces" not in prompt,
+                    "Unrelated TLO turn eagerly received Machine Spaces knowledge")
+            capable_projection = store.scoped_projection("tlo", "default")
+            capable_projection["capabilityContext"] = agent_capability_registry.resolve(
+                "Use the Machine Spaces terminal to run this script and recover a failed test"
+            )
+            capable_prompt = tlo_chat.build_system_prompt(capable_projection)
+            require("Machine Spaces" in capable_prompt and "Supervised Terminal Execution" in capable_prompt
+                    and "Engineering Recovery" in capable_prompt and "Engineering Verification" in capable_prompt
+                    and "guidance only; never authority" in capable_prompt,
+                    "Relevant capability packs were not progressively loaded")
+            public_context = agent_capability_registry.public_context(capable_projection["capabilityContext"])
+            require(all("text" not in pack for pack in public_context["packs"])
+                    and len(public_context["digest"]) == 64,
+                    "Capability receipt exposed text or omitted its stable digest")
+            explicit = agent_capability_registry.resolve(
+                "[[EVEOS:CAPABILITIES playwright-browser]] git terminal repair"
+            )
+            require([pack["id"] for pack in explicit["packs"]] == ["machine-spaces", "playwright-browser"],
+                    "Explicit Nexus capability selection admitted incidental relay vocabulary")
+            guide = documents.read(documents.GUIDE)
+            require(guide["source"] == "tracked" and
+                    any(item["path"] == documents.GUIDE for item in documents.catalog()),
+                    "Tracked Markdown library did not expose Nexus guide")
+            updated_guide = documents.save(documents.GUIDE, "# Custom Nexus Guide\\nGUIDE_ONLY_SENTINEL\\n",
+                                            guide["revision"])
+            require(updated_guide["source"] == "private-override" and
+                    "GUIDE_ONLY_SENTINEL" not in tlo_chat.build_system_prompt(store.scoped_projection("tlo", "default")),
+                    "Legacy Nexus guide was still injected eagerly instead of capability packs")
+            try:
+                documents.save(documents.GUIDE, "old revision must fail", guide["revision"])
+                raise AssertionError("Stale Markdown revision was accepted")
+            except documents.DocumentError:
+                pass
+            require("GUIDE_ONLY_SENTINEL" in documents.read(documents.GUIDE)["text"],
+                    "Rejected stale revision replaced the current document")
+            require("GUIDE_ONLY_SENTINEL" not in
+                    tlo_chat.build_system_prompt(store.scoped_projection("eve-engineering", "default")),
+                    "TLO's guide leaked into another agent's prompt")
             try:
                 tlo_definition.save("\x00")
                 raise AssertionError("Invalid definition was accepted")

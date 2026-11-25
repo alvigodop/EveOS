@@ -15,9 +15,10 @@
     'help', 'onboard', 'checkpoint', 'read_checkpoint', 'rooms', 'targets', 'create_room', 'use_room', 'status',
     'rename_self', 'set_self_relay', 'clear_chat', 'delete_room', 'add_agent', 'spawn_agent', 'despawn_agent', 'send', 'handoff_room',
     'stop_relay', 'continue_relay', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'reload_extension', 'watch_done', 'unwatch_done',
-    'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output', ...roomAdminApi.ACTIONS
+    'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'workspace_ensure', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output',
+    'job_prepare', 'playwright_prepare', 'governor_prepare', 'job_status', 'job_list', 'nav_status', 'nav_search', ...roomAdminApi.ACTIONS
   ]);
-  const MUTATING_ACTIONS = new Set(['checkpoint','create_room','rename_room','configure_room','add_agent','spawn_agent','despawn_agent','rename_agent','set_agent_relay','remove_agent','rename_self','set_self_relay','stop_relay','continue_relay','set_room_budget','clear_chat','delete_room','send','handoff_room','reload_extension','watch_done','unwatch_done','arm_post_idle','cancel_post_idle','report_post_idle','terminal_exec','quorum_presence','quorum_open','quorum_vote','quorum_close']);
+  const MUTATING_ACTIONS = new Set(['checkpoint','create_room','rename_room','configure_room','add_agent','spawn_agent','despawn_agent','rename_self','set_self_relay','rename_agent','set_agent_relay','remove_agent','stop_relay','continue_relay','set_room_budget','clear_chat','delete_room','send','handoff_room','reload_extension','watch_done','unwatch_done','arm_post_idle','cancel_post_idle','report_post_idle','workspace_ensure','terminal_exec','job_prepare','playwright_prepare','governor_prepare','quorum_presence','quorum_open','quorum_vote','quorum_close']);
   function clean(value, max = 16000) {
     return String(value || '').replace(/\r\n?/g, '\n').trim().slice(0, max);
   }
@@ -72,13 +73,10 @@
     return pool.find((target) => String(target.id) === targetId
       && (!command.providerId || target.providerId === command.providerId)) || null;
   }
-  function roomBusy(_state, room) {
-    if (!room) return false;
-    return !!room.relay?.active
-      || !!room.relay?.waitingFor
-      || !!room.pendingTurn
-      || !!room.recovery || !!room.pendingProviderControlReceipt || !!room.deferredRelays?.length;
-  }
+  function roomExecutionBusy(_state, room) { return !!room && (!!room.relay?.active
+    || !!room.relay?.waitingFor || !!room.pendingTurn || !!room.recovery || !!room.deferredRelays?.length); }
+  function roomHasPendingControlReceipt(_state, room) { return !!room?.pendingProviderControlReceipt; }
+  function roomBusy(state, room) { return roomExecutionBusy(state, room) || roomHasPendingControlReceipt(state, room); }
   function clearRoomHistory(room) {
     if (!room) return 0;
     const cleared = Array.isArray(room.messages) ? room.messages.length : 0;
@@ -135,7 +133,7 @@
         providerName: member?.binding?.providerName || null,
         relayEnabled: member?.relayEnabled !== false
       },
-      commands: ['rooms', 'targets', 'status', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'checkpoint', 'read_checkpoint', 'use_room', 'create_room', 'rename_room', 'configure_room', 'add_agent', 'spawn_agent', 'despawn_agent', 'rename_agent', 'set_agent_relay', 'remove_agent', 'rename_self', 'set_self_relay', 'stop_relay', 'continue_relay', 'clear_chat', 'delete_room', 'send', 'handoff_room', 'reload_extension', 'watch_done', 'unwatch_done', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output'],
+      commands: ['rooms', 'targets', 'status', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'checkpoint', 'read_checkpoint', 'use_room', 'create_room', 'rename_room', 'configure_room', 'add_agent', 'spawn_agent', 'despawn_agent', 'rename_agent', 'set_agent_relay', 'remove_agent', 'rename_self', 'set_self_relay', 'stop_relay', 'continue_relay', 'clear_chat', 'delete_room', 'send', 'handoff_room', 'reload_extension', 'watch_done', 'unwatch_done', 'workspace_ensure', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output', 'job_prepare', 'playwright_prepare', 'governor_prepare', 'job_status', 'job_list'],
       spawnProviders: providers.filter((entry) => entry.orchestration?.spawnable).map((entry) => ({ providerId: entry.id, providerName: entry.name })),
       continuity: continuityApi.onboardingGuidance(room, member, provider),
       rules: [
@@ -150,8 +148,9 @@
       ]
     };
   }
-  function createController({ state, roomMessage, startRelay, stopRoom, persist, renderAll, log, storage, createRoom, uid }) {
+  function createController({ state, roomMessage, startRelay, stopRoom, persist, renderAll, log, storage, createRoom, uid, pendingControlAuthorized = () => false }) {
     const selections = loadSelections(storage);
+    const busy = (room) => roomExecutionBusy(state, room) || (roomHasPendingControlReceipt(state, room) && !pendingControlAuthorized(room.pendingProviderControlReceipt, room));
     function setSelection(source, room) {
       selections[sourceKey(source)] = room.id;
       saveSelections(selections, storage);
@@ -208,7 +207,8 @@
             '[[DEX:CMD {"action":"reload_extension","room":"<exact authorized room id>"}]]',
             '[[DEX:CMD {"action":"terminal_targets","space":"<space id or exact name>"}]]',
             '[[DEX:CMD {"action":"terminal_exec","space":"<space>","terminal":"<terminal id>","command":"<exact command>"}]]',
-            '[[DEX:CMD {"action":"terminal_status","space":"<space>","requestId":"<terminal request id>"}]]',
+            '[[DEX:CMD {"action":"playwright_prepare","space":"<space>","terminal":"<terminal id>","scenario":"agent-nexus-browser"}]]',
+            '[[DEX:CMD {"action":"job_status","space":"<space>","jobId":"<prepared job id>"}]]', '[[DEX:CMD {"action":"terminal_status","space":"<space>","requestId":"<terminal request id>"}]]',
             '[[DEX:CMD {"action":"terminal_output","space":"<space>","outputId":"<output id>","offset":0,"limit":4000}]]'
           ],
           note: 'Commands are trailing-only. Browser providers are authorized only for rooms containing that exact provider chat; local agents are authorized only for their exact local target. terminal_exec never runs until Drift approves that exact command once in the local Machine Space.'
@@ -222,7 +222,8 @@
       if (!ACTIONS.has(action)) return { ok: false, code: 'DEX_CONTROL_BAD_ACTION', message: `Unsupported Dex provider-control action: ${action || '(missing)'}` };
       if (!source.targetClassId || !source.providerId) return { ok: false, code: 'DEX_CONTROL_BAD_SOURCE', message: 'Provider-control source identity is incomplete.' };
       if (action === 'help') return help();
-      if (['reload_extension', 'watch_done', 'unwatch_done', 'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output'].includes(action)) return { ok: false, code: 'DEX_CONTROL_SERVER_ONLY', message: `${action} is owned by the localhost provider-control router.` };
+      if (['reload_extension', 'watch_done', 'unwatch_done', 'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'workspace_ensure', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output',
+        'job_prepare', 'playwright_prepare', 'governor_prepare', 'job_status', 'job_list'].includes(action)) return { ok: false, code: 'DEX_CONTROL_SERVER_ONLY', message: `${action} is owned by the localhost provider-control router.` };
       if (action === 'create_room') {
         if (typeof createRoom !== 'function') {
           return { ok: false, code: 'DEX_CONTROL_CREATE_UNAVAILABLE', message: 'Dex room creation is unavailable in this runtime.' };
@@ -317,8 +318,8 @@
       if (action === 'handoff_room') {
         const text = clean(command.text);
         if (!text) return { ok: false, code: 'DEX_CONTROL_EMPTY_MESSAGE', message: 'handoff_room requires non-empty text.' };
-        if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already busy.`, data: { commitState: 'not_committed', commitId: null } };
-        const busySources = rooms.filter((entry) => entry.id !== room.id && roomBusy(state, entry));
+        if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already busy.`, data: { commitState: 'not_committed', commitId: null } };
+        const busySources = rooms.filter((entry) => entry.id !== room.id && busy(entry));
         if (busySources.length > 1) return { ok: false, code: 'DEX_CONTROL_HANDOFF_AMBIGUOUS', message: 'More than one other authorized room is busy for this provider chat; refusing to guess which room to stop.' };
         if (busySources.length === 1) {
           if (typeof stopRoom !== 'function' || !stopRoom(busySources[0], `Handed off by ${memberForSource(busySources[0], source)?.name || member.name} to ${room.name}`)) {
@@ -352,7 +353,7 @@
           data: { roomId: room.id, stopRequested: true, authoritativeStatePending: true } };
       }
       if (action === 'continue_relay') {
-        if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already busy.` };
+        if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already busy.` };
         const sourceMessage = (room.messages || []).at(-1);
         if (!sourceMessage) return { ok: false, code: 'DEX_CONTROL_NO_MESSAGES', message: 'continue_relay requires at least one room message.' };
         const turns = Math.max(1, Math.min(roomAdminApi.protocol?.MAX_RELAY_TURNS || 500, Number.parseInt(command.turns, 10) || room.settings?.maxTurns || 8));
@@ -360,7 +361,7 @@
         return { ok: true, silent: true, action, message: `Continued ${room.name} for up to ${turns} turn(s).`, data: { roomId: room.id, turns } };
       }
       if (roomAdminApi.ACTIONS.has(action)) {
-        if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before changing room structure.` };
+        if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before changing room structure.` };
         if (action === 'remove_agent' && roomAdminApi.resolveMember(room, command.member).member?.binding?.managedByDex === true) return { ok: false, code: 'DEX_CONTROL_MANAGED_AGENT', message: 'Use despawn_agent for Dex-managed browser workers so their tab is closed safely.' };
         const result = roomAdminApi.handle(action, room, command);
         if (!result?.ok) return { ...result, action };
@@ -369,13 +370,13 @@
         return { ok: true, action, message: result.message, data: roomSummary(room, memberForSource(room, source), true) };
       }
       if (action === 'clear_chat') {
-        if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before clearing chat.` };
+        if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before clearing chat.` };
         const cleared = clearRoomHistory(room);
         persist(); renderAll(); log?.(`Provider control cleared ${cleared} message(s) from ${room.name}.`);
         return { ok: true, action, message: `Cleared ${cleared} message(s) from ${room.name}.`, data: roomSummary(room, member, true) };
       }
       if (action === 'delete_room') {
-        if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before deleting it.` };
+        if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is busy. Stop the relay before deleting it.` };
         if ((room.members || []).some((entry) => entry.binding?.managedByDex === true)) return { ok: false, code: 'DEX_CONTROL_MANAGED_WORKERS_PRESENT', message: 'Despawn managed browser workers before deleting their room.' };
         if (state.rooms.length === 1 && typeof createRoom !== 'function') {
           return { ok: false, code: 'DEX_CONTROL_DELETE_UNAVAILABLE', message: 'Cannot delete the final room without a room factory.' };
@@ -390,14 +391,14 @@
         return { ok: true, action, message: `Deleted Dex room: ${deleted.name}`, data: { deletedRoomId: deleted.id, activeRoomId: state.activeRoomId, remainingRooms: state.rooms.length } };
       }
       const participantResult = participantApi.handle({
-        action, state, room, selectedMember: member, command, roomBusy, targetForCommand,
+        action, state, room, selectedMember: member, command, roomBusy: (_state, candidate) => busy(candidate), targetForCommand,
         bindingFromTarget, bindingFingerprint, clean, uid, persist, renderAll, log, roomSummary,
         resolveMember: roomAdminApi.resolveMember
       });
       if (participantResult) return participantResult;
       const text = clean(command.text);
       if (!text) return { ok: false, code: 'DEX_CONTROL_EMPTY_MESSAGE', message: 'send requires non-empty text.' }; if (command.contextMessages != null && (!Number.isInteger(command.contextMessages) || command.contextMessages < 1 || command.contextMessages > 40)) return { ok: false, code: 'DEX_CONTEXT_INVALID', message: 'contextMessages must be 1–40.' };
-      if (roomBusy(state, room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already relaying. Wait for it to stop before initiating an out-of-band provider message.` };
+      if (busy(room)) return { ok: false, code: 'DEX_CONTROL_ROOM_BUSY', message: `Dex room ${room.name} is already relaying. Wait for it to stop before initiating an out-of-band provider message.` };
       const priorWatch = doneWatchApi.snapshot(room);
       const enrollment = doneWatchApi.armSend(room, member, command, uid);
       if (!enrollment.ok) return enrollment;
@@ -427,7 +428,7 @@
     findRoom,
     roomSummary,
     onboardingData,
-    roomBusy,
+    roomBusy, roomExecutionBusy, roomHasPendingControlReceipt,
     clearRoomHistory,
     compactTarget,
     bindingFromTarget,
@@ -435,6 +436,5 @@
     targetForCommand,
     createController
   };
-  globalThis.BrowserAiBridgeDexProviderControl = api;
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  globalThis.BrowserAiBridgeDexProviderControl = api; if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

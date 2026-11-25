@@ -29,7 +29,11 @@ function silentWavDataUrl() {
 async function main() {
     const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
-    const pageErrors = [];
+    const pageErrors = [], invalidControlPortRequests = [];
+    page.on('requestfailed', request => {
+        if (/^https?:\/\/(?:127\.0\.0\.1|localhost):0\//i.test(request.url()))
+            invalidControlPortRequests.push(request.url());
+    });
     page.on('pageerror', (error) => {
         console.error('[BROWSER ERROR]', error);
         pageErrors.push(error?.stack || String(error));
@@ -196,8 +200,11 @@ async function main() {
     await page.click(`[data-af-action="item-info"][data-af-id="${soundId}"]`);
     await page.waitForSelector('.audioflix-group-cb[data-af-group="Quick Clips"]', { timeout: 5000 });
     await page.click('.audioflix-group-cb[data-af-group="Quick Clips"]');
-    await page.fill('.audioflix-hotkey-input', '1');
-    await page.dispatchEvent('.audioflix-hotkey-input', 'change');
+    await page.focus('.audioflix-hotkey-input');
+    await page.keyboard.press('Control+Shift+U');
+    await page.waitForFunction((id) => window.EveAudioflixState.getSnapshot().portHotkeys[id] === 'ctrl+shift+u', soundId);
+    await page.fill('.audioflix-hotkey-input', '');
+    await page.keyboard.press('1');
     await page.waitForFunction((id) => (window.EveAudioflixState.getSnapshot().soundGroupMap[id] || []).includes('Quick Clips'), soundId, { timeout: 5000 });
     await page.click('.audioflix-info-footer [data-af-action="close-info"]');
     // Frontend opens at All Groups until the user chooses a focus. Select the real group pill
@@ -225,11 +232,11 @@ async function main() {
     // Hotkey: pressing "1" plays the first sound of the active group.
     const hotkeyPlayed = await page.evaluate(async (id) => {
         const played = [];
-        const orig = window.EveAudioflixAudio.playItem;
-        window.EveAudioflixAudio.playItem = (item) => { played.push(item && item.id); return Promise.resolve(true); };
+        const orig = window.EveAudioflixAudio.playSound;
+        window.EveAudioflixAudio.playSound = (item) => { played.push(item && item.id); return Promise.resolve(true); };
         document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
         await new Promise((r) => setTimeout(r, 50));
-        window.EveAudioflixAudio.playItem = orig;
+        window.EveAudioflixAudio.playSound = orig;
         return played.includes(id);
     }, soundId);
     await page.click('[data-af-action="toggle-view-mode"]'); // back to backend
@@ -401,6 +408,8 @@ async function main() {
     if (result.webAudioSink !== 'cable-output') failures.push(`Web Audio sink did not follow the selected output: ${result.webAudioSink}`);
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');
     if (pageErrors.length) failures.push(`page errors: ${pageErrors.join('\n')}`);
+    if (invalidControlPortRequests.length) failures.push(
+        `invalid localhost:0 requests: ${invalidControlPortRequests.join(', ')}`);
 
     await browser.close();
     if (failures.length) throw new Error(failures.join('; '));

@@ -12,6 +12,7 @@ import tempfile
 import textwrap
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -60,11 +61,16 @@ def assert_static_contract() -> None:
     piano_css = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.css").read_text(encoding="utf-8")
     piano_client = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.client.js").read_text(encoding="utf-8")
     bridge = (PIANO / "web" / "eveos-host-bridge.js").read_text(encoding="utf-8")
+    pcm_parent = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.pcm.js").read_text(encoding="utf-8")
+    pcm_child = (PIANO / "web" / "piano_pcm_capture.js").read_text(encoding="utf-8")
+    sound = (PIANO / "web" / "piano_sound.js").read_text(encoding="utf-8")
     piano_app = (PIANO / "web" / "app.js").read_text(encoding="utf-8")
     workspace = (PIANO / "web" / "sheet_workspace.js").read_text(encoding="utf-8")
     bulk = (PIANO / "web" / "bulk_conversion.js").read_text(encoding="utf-8")
     workspace_css = (PIANO / "web" / "piano_workspace.css").read_text(encoding="utf-8")
     state = (ROOT / "js" / "modules" / "core" / "state.js").read_text(encoding="utf-8")
+    piano_player_control_source = (ROOT / "server_modules" / "piano_player_control.py").read_text(encoding="utf-8")
+    piano_start = (PIANO / "start.bat").read_text(encoding="utf-8")
 
     order = [panel.index(f"tabButton('{name}'") for name in ("soundboard", "music", "piano", "soundlab", "router")]
     assert all(index >= 0 for index in order) and order == sorted(order)
@@ -82,7 +88,25 @@ def assert_static_contract() -> None:
     assert "data-piano-detached" in piano_ui and "detachedWindow" in piano_ui and "Focus Detached" in piano_ui
     assert ".audioflix-piano.is-detached" in piano_css and "pointer-events: none" in piano_css
     assert "piano-setup" in piano_ui and "Setup / Repair" in piano_ui
+    assert "padding: 10px 14px;" in piano_css and "font-size: clamp(19px, 2vw, 27px);" in piano_css
+    assert "min-height: 30px;" in piano_css
+    assert 'data-piano-view-title' in piano_ui and 'Piano Auto Player - Backend' in piano_ui
+    assert 'data-piano-backend' in piano_ui and 'data-piano-frontend' in piano_ui
+    assert "EveAudioflixPianoViews?.apply?.(panel)" in piano_ui
+    assert "EveAudioflixPianoViews?.toggle?.(" in piano_ui
+    assert 'audioflix.piano.views.js' in html and html.index('audioflix.piano.views.js') < html.index('audioflix.piano.ui.js')
+    assert 'data-piano-view="frontend"' in piano_css
+    assert 'Piano Auto Player - Backend' in (PIANO / 'web' / 'index.html').read_text(encoding='utf-8')
     assert "sessionStorage" in bridge and "localStorage" not in bridge
+    assert "piano:eveos-pcm" in bridge and "event.source !== eveHost" in bridge
+    assert "MAX_PENDING = 3" in pcm_parent and "lane: 'piano-pcm'" in pcm_parent
+    assert "event.source === binding.target" in pcm_parent and "event.origin === binding.origin" in pcm_parent
+    assert "startHeartbeat(expected)" in pcm_parent and "options.retry !== true" in pcm_parent
+    assert "retryPcm: true" in piano_ui and "sendContext(target, { retry: true })" in piano_ui
+    assert pcm_child.count("new Float32Array(4096)") == 2 and "postPcm" in pcm_child
+    assert "master.connect(compressor)" in sound and "createPianoOutputRouter(ctx, compressor)" in sound
+    assert "preparePianoPcmOutput" in sound and "pianoPcmReady" in pcm_child
+    assert "preferBrowserDirect" in piano_ui and "transport: 'browser-direct'" in piano_ui
     assert "pianoPlayerPort: 8771" in state
 
     assert 'setupSheetWorkspace' in piano_app and 'setupBulkConversion' in piano_app
@@ -97,11 +121,37 @@ def assert_static_contract() -> None:
     assert 'api.youtubeDependencies()' in bulk and 'Blocked —' in bulk and 'Failed —' in bulk
     assert '@media (max-width: 1180px)' in workspace_css and '.hero-grid, .lower-grid' in workspace_css
     assert '.controls-panel select' in workspace_css and '.seek-controls' in workspace_css
+    assert 'piano-workflow-organized' in workspace and 'sidecar.append(flow, controls)' in workspace
+    assert '.hero-grid.piano-workflow-organized > .piano-workflow-sidecar' in workspace_css
+    assert '.sheet-workspace-cache { grid-column: 1; grid-row: 1' in workspace_css
+    assert '.sheet-workspace-staging { grid-column: 2; grid-row: 1' in workspace_css
+    assert '.sheet-workspace-cache:not([open]) .sheet-workspace-copy small { display: none; }' in workspace_css
+    assert '.sheet-workspace-cache:not([open]) > summary, .sheet-workspace-staging:not([open]) > summary' in workspace_css
+    assert 'height: 62px;' in workspace_css
+    assert '.sheet-workspace > .sheet-workspace-queue' in workspace_css
+
+    unified_css = (ROOT / "tools" / "Piano-Auto-Player" / "web" / "piano_unified_workspace.css").read_text(encoding="utf-8")
+    unified_js = (ROOT / "tools" / "Piano-Auto-Player" / "web" / "piano_unified_workspace.js").read_text(encoding="utf-8")
+    song_list_js = (ROOT / "tools" / "Piano-Auto-Player" / "web" / "piano_unified_song_list.js").read_text(encoding="utf-8")
+    assert '.search-panel.piano-collapsible-panel[data-u-collapsed="1"]' in unified_css
+    assert '.notation-panel.piano-collapsible-panel[data-u-collapsed="1"]' in unified_css
+    assert 'min-height: 32px;' in unified_css
+    assert '> .panel-head > div > .eyebrow' in unified_css
+    assert '> .panel-head h2' in unified_css
+    assert '.piano-now-controls { grid-column: 2; justify-content: flex-end; flex-wrap: nowrap; }' in unified_css
+    assert '.piano-now-controls { grid-column: 1; justify-content: flex-start; flex-wrap: wrap;' in unified_css
+    assert "from './piano_unified_song_list.js'" in unified_js and 'enhanceSongListDisclosure(planner' in unified_js
+    assert "saveCollapsed('song-list', collapsed)" in song_list_js
+    assert '.piano-song-list-panel[data-u-collapsed="1"] > [data-p-list]' in unified_css
+    assert '.piano-unified-workspace .planner-pill { min-height: 32px;' in unified_css
 
     helper = (ROOT / "server_modules" / "eveos_control_helper.py").read_text(encoding="utf-8")
     assert '"/api/piano-player/status"' in helper
     assert '"/api/piano-player/start"' in helper and '"/api/piano-player/stop"' in helper
     assert '"/api/piano-player/setup"' in helper and "open_setup" in helper
+    assert '["cmd.exe", "/d", "/c", str(launcher)]' in piano_player_control_source
+    assert 'cmd /k' not in piano_start
+    assert 'run.py --host 127.0.0.1 --port 8771\nexit /b %ERRORLEVEL%' in piano_start
     assert "piano_player_control.restore_desired_state_async()" in helper
 
     ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
@@ -123,7 +173,11 @@ def assert_static_contract() -> None:
 
 
 def assert_http_contract() -> None:
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), piano_server.Handler)
+    class QuietHandler(piano_server.Handler):
+        def log_message(self, _fmt: str, *_args) -> None:
+            pass
+
+    server = piano_server.PianoHTTPServer(("127.0.0.1", 0), QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -133,9 +187,17 @@ def assert_http_contract() -> None:
         assert cors == "null"
         status, body, _ = request(server.server_port, "GET", "/")
         assert status == 200 and b"eveos-host-bridge.js" in body
-        for asset in ("sheet_workspace.js", "bulk_conversion.js", "piano_workspace.css"):
+        for asset in ("sheet_workspace.js", "bulk_conversion.js", "piano_workspace.css", "piano_pcm_capture.js"):
             status, body, _ = request(server.server_port, "GET", f"/assets/{asset}")
             assert status == 200 and body
+        assets = ("app.js", "internal_preview.js", "piano.js", "piano_sound.js")
+        with ThreadPoolExecutor(max_workers=24) as pool:
+            burst = list(pool.map(
+                lambda index: request(server.server_port, "GET", f"/assets/{assets[index % len(assets)]}?burst={index}")[0],
+                range(48),
+            ))
+        assert burst == [200] * 48, "parallel browser module burst must not lose connections"
+        assert server.request_queue_size >= 64
         status, _, cors = request(server.server_port, "OPTIONS", "/api/status", "https://example.com")
         assert status == 204 and not cors
     finally:
@@ -202,9 +264,32 @@ def assert_upstream_tests() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def assert_native_preview_tests() -> None:
+    """Opt-in native-preview tests; keep the normal Piano integration gate unchanged."""
+    commands = (
+        [sys.executable, "-B", "tools/smoke/audioflix_piano_native_smoke.py"],
+        [sys.executable, "-B", "tools/smoke/audioflix_piano_native_continuation_smoke.py"],
+        ["node", "tools/smoke/audioflix_piano_native_client_smoke.cjs"],
+    )
+    for command in commands:
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True,
+                                timeout=180, check=False)
+        if result.returncode:
+            raise AssertionError("Native Piano preview smoke failed: " + " ".join(command)
+                                 + "\n" + result.stdout + result.stderr)
+        if result.stdout.strip():
+            print(result.stdout.strip())
+    print("AUDIOFLIX_PIANO_NATIVE_PREVIEW_SMOKES_OK")
+
+
 if __name__ == "__main__":
-    assert_static_contract()
-    assert_http_contract()
-    assert_lifecycle_contract()
-    assert_upstream_tests()
-    print("AUDIOFLIX_PIANO_INTEGRATION_SMOKE_OK")
+    if sys.argv[1:] == ["--native"]:
+        assert_native_preview_tests()
+    elif sys.argv[1:]:
+        raise SystemExit("Unsupported Piano smoke arguments: " + repr(sys.argv[1:]))
+    else:
+        assert_static_contract()
+        assert_http_contract()
+        assert_lifecycle_contract()
+        assert_upstream_tests()
+        print("AUDIOFLIX_PIANO_INTEGRATION_SMOKE_OK")

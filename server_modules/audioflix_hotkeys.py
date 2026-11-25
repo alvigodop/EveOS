@@ -11,8 +11,8 @@ markedly more stable for long-running use (low-level hooks can introduce system-
 over time). The OS posts WM_HOTKEY to our message-loop thread, which then plays the pre-decoded
 clip through the soundboard mixer out to the selected bypass device (CABLE).
 
-The client registers ONLY the active Frontend group's bound sounds; switching groups re-sends
-the set, so the live global hotkeys always match what's on screen.
+The client registers the selected Frontend group's bindings. Registration remains armed when
+Audioflix closes, while changing the visible group deliberately replaces the active key set.
 """
 
 import base64
@@ -21,6 +21,8 @@ from ctypes import wintypes
 import queue
 import threading
 import time
+
+from server_modules import audioflix_bridge_playback
 
 try:
     import numpy as np
@@ -54,6 +56,7 @@ _MODS = {'ctrl': MOD_CONTROL, 'control': MOD_CONTROL, 'shift': MOD_SHIFT,
          'alt': MOD_ALT, 'win': MOD_WIN, 'meta': MOD_WIN, 'super': MOD_WIN, 'cmd': MOD_WIN}
 
 _lock = threading.Lock()
+_configure_lock = threading.Lock()
 _bindings = {}        # hk_id -> {samples, rate, device, vol, combo, ok}
 _next_id = [1]
 _cmd_q = queue.Queue()
@@ -62,12 +65,19 @@ _ready = threading.Event()      # set once the message-loop thread is up
 _loop_tid = [0]                 # native id of the loop thread (for PostThreadMessage wakeups)
 _triggers = [0]                 # diagnostic: how many times any hotkey has fired
 _last_fired = {}                # {vid, combo, at} of the most recent hotkey -> on-site flash feedback
+_last_error = {}                # latest playback failure, exposed without requiring console access
 # Bypass toggle: a user-set combo that suspends/re-arms ALL sound hotkeys so the keys pass
 # through for typing/use mid-game, then toggles them back on. Lives server-side so it works
 # while EveOS is unfocused. The bypass key itself stays registered while suspended.
 _bypass_id = [0]                # hk_id of the bypass toggle combo (0 = none)
 _bypass_combo = [None]          # the bypass combo string (for status/UI)
 _bypassed = [False]             # True = sound hotkeys currently suspended (typing mode)
+_bypass_ok = [None]             # RegisterHotKey result for the bypass combo
+_transport_id = [0]             # tab-aware Audioflix pause/resume trigger
+_transport_combo = [None]
+_transport_ok = [None]
+_transport_seq = [0]
+_last_transport = {}
 
 
 def available():
@@ -109,25 +119,34 @@ def _trigger(hk_id):
         return
     _triggers[0] += 1
     try:
-        from server_modules import audioflix_bridge as br
         # Deterministic voice id (the client sends 'hk:<soundId>') so the soundboard Stop
         # button can clear a hotkey-triggered instance; falls back to the hotkey numeric id.
         vid = b.get('vid') or ('hotkey-%d' % hk_id)
-        player = br._player_for(b['device'], b['rate'], 1)
+        used_device = b['device']
+        try:
+            player = audioflix_bridge_playback._player_for(used_device, b['rate'], 1)
+        except Exception:
+            if used_device == 'default':
+                raise
+            used_device = 'default'
+            player = audioflix_bridge_playback._player_for(used_device, b['rate'], 1)
         player.clear_voices(vid)            # replace a still-playing instance of this key
         player.add_voice(b['samples'], vid, b['vol'])
-        _last_fired.update({'vid': vid, 'combo': b.get('combo'), 'at': time.time()})
+        _last_fired.update({'vid': vid, 'combo': b.get('combo'), 'deviceId': used_device,
+                            'duration': b.get('duration', 0), 'at': time.time()})
+        _last_error.clear()
     except Exception as e:
+        _last_error.update({'vid': b.get('vid'), 'combo': b.get('combo'), 'message': str(e), 'at': time.time()})
         print(f"[Hotkey Engine] playback error for id={hk_id}: {e}", flush=True)
 
 
-def _toggle_bypass():
-    """Flip the bypass state. Runs on the loop thread (from WM_HOTKEY), so it just queues
-    (un)register commands — the loop drains them on its next pass. Bypassed -> unregister every
-    sound hotkey so the OS stops consuming those keys (you can type); un-bypassed -> re-register
-    them from the cached bindings. The bypass key stays registered throughout."""
-    _bypassed[0] = not _bypassed[0]
+def _set_bypass_state(desired):
+    """Idempotently apply bypass through the one native registration owner."""
     with _lock:
+        desired = bool(desired)
+        if _bypassed[0] == desired:
+            return False
+        _bypassed[0] = desired
         items = list(_bindings.items())
     if _bypassed[0]:
         for hk_id, _b in items:
@@ -137,7 +156,18 @@ def _toggle_bypass():
             if b.get('vk') is not None:
                 _cmd_q.put(('register', hk_id, b.get('mods', 0), b['vk']))
     _wake()
-    print(f"[Hotkey Engine] bypass toggled -> {_bypassed[0]}", flush=True)
+    print(f"[Hotkey Engine] bypass set -> {_bypassed[0]}", flush=True)
+    return True
+
+
+def _toggle_bypass():
+    """Toggle bypass from WM_HOTKEY while retaining the same registration owner."""
+    _set_bypass_state(not _bypassed[0])
+
+
+def _trigger_transport():
+    _transport_seq[0] += 1
+    _last_transport.update({'seq': _transport_seq[0], 'combo': _transport_combo[0], 'at': time.time()})
 
 
 def _apply(user32, cmd):
@@ -147,7 +177,11 @@ def _apply(user32, cmd):
         # MOD_NOREPEAT so holding the combo fires once, not on every auto-repeat.
         ok = bool(user32.RegisterHotKey(None, hk_id, mods | MOD_NOREPEAT, vk))
         with _lock:
-            if hk_id in _bindings:
+            if hk_id == _bypass_id[0]:
+                _bypass_ok[0] = ok
+            elif hk_id == _transport_id[0]:
+                _transport_ok[0] = ok
+            elif hk_id in _bindings:
                 _bindings[hk_id]['ok'] = ok
         print(f"[Hotkey Engine] RegisterHotKey id={hk_id} mods={mods} vk={vk} -> {ok}", flush=True)
     elif kind == 'unregister':
@@ -187,6 +221,8 @@ def _loop():
             hk = int(msg.wParam)
             if hk and hk == _bypass_id[0]:
                 _toggle_bypass()
+            elif hk and hk == _transport_id[0]:
+                _trigger_transport()
             else:
                 _trigger(hk)
         else:
@@ -202,7 +238,7 @@ def _ensure_thread():
     threading.Thread(target=_loop, daemon=True, name='audioflix-hotkeys').start()
 
 
-def clear_all():
+def _clear_registrations(reset_bypass=True):
     with _lock:
         ids = list(_bindings.keys())
         _bindings.clear()
@@ -213,9 +249,21 @@ def clear_all():
         _cmd_q.put(('unregister', _bypass_id[0]))
         _bypass_id[0] = 0
     _bypass_combo[0] = None
-    _bypassed[0] = False
+    _bypass_ok[0] = None
+    if _transport_id[0]:
+        _cmd_q.put(('unregister', _transport_id[0]))
+        _transport_id[0] = 0
+    _transport_combo[0] = None
+    _transport_ok[0] = None
+    if reset_bypass:
+        _bypassed[0] = False
     _wake()
     return {'ok': True, 'cleared': len(ids)}
+
+
+def clear_all():
+    with _configure_lock:
+        return _clear_registrations(reset_bypass=True)
 
 
 def _is_elevated():
@@ -225,7 +273,7 @@ def _is_elevated():
         return False
 
 
-def set_bindings(payload):
+def _set_bindings(payload):
     """Replace the live global hotkeys with the supplied set.
 
     payload = {deviceId, sampleRate, bindings: [{combo, audio(base64 int16 PCM), volume}]}
@@ -239,15 +287,28 @@ def set_bindings(payload):
     items = payload.get('bindings') or []
     _ensure_thread()
     _ready.wait(2.0)
-    clear_all()
-    queued, skipped = [], []
+    was_bypassed = _bypassed[0]
+    _clear_registrations(reset_bypass=False)
+    bypass_combo = str(payload.get('bypassCombo') or '').strip()
+    parsed_b = _parse_combo(bypass_combo)
+    transport_combo = str(payload.get('transportCombo') or '').strip()
+    parsed_t = _parse_combo(transport_combo)
+    transport_duplicate = bool(parsed_t and parsed_t == parsed_b)
+    # Manual bypass does not require a configured bypass combo. Preserve it when bindings refresh.
+    _bypassed[0] = bool(was_bypassed)
+    used = {value for value in (parsed_b, parsed_t) if value}
+    queued, skipped, duplicates = [], [], []
     for it in items:
-        combo = str(it.get('combo') or '')
+        combo = str(it.get('combo') or '').strip()
         audio = it.get('audio')
         parsed = _parse_combo(combo)
         if not parsed or not audio:
             skipped.append(combo)
             continue
+        if parsed in used:
+            duplicates.append(combo)
+            continue
+        used.add(parsed)
         mods, vk = parsed
         try:
             samples = np.frombuffer(base64.b64decode(audio), dtype='<i2').astype('float32') / 32768.0
@@ -257,15 +318,14 @@ def set_bindings(payload):
         with _lock:
             hk_id = _next_id[0]
             _next_id[0] += 1
-            _bindings[hk_id] = {'samples': samples, 'rate': rate, 'device': device,
+            _bindings[hk_id] = {'samples': samples, 'rate': rate, 'duration': len(base64.b64decode(audio)) / 2 / max(1, rate), 'device': device,
                                 'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None,
                                 'vid': str(it.get('voiceId') or '') or None,
                                 'mods': mods, 'vk': vk}  # mods/vk kept so bypass can re-arm
-        _cmd_q.put(('register', hk_id, mods, vk))
+        if not _bypassed[0]:
+            _cmd_q.put(('register', hk_id, mods, vk))
         queued.append(hk_id)
     # Register the bypass toggle key (own id, not in _bindings so it never plays a sound).
-    bypass_combo = str(payload.get('bypassCombo') or '')
-    parsed_b = _parse_combo(bypass_combo)
     if parsed_b:
         mods_b, vk_b = parsed_b
         with _lock:
@@ -274,25 +334,62 @@ def set_bindings(payload):
             _bypass_id[0] = bid
             _bypass_combo[0] = bypass_combo
         _cmd_q.put(('register', bid, mods_b, vk_b))
+    if parsed_t and not transport_duplicate:
+        mods_t, vk_t = parsed_t
+        with _lock:
+            tid = _next_id[0]
+            _next_id[0] += 1
+            _transport_id[0] = tid
+            _transport_combo[0] = transport_combo
+        _cmd_q.put(('register', tid, mods_t, vk_t))
     _wake()
     # Wait briefly for the loop thread to actually RegisterHotKey each combo so we can report
     # real success/conflict (a combo already owned by another app fails to register).
     deadline = time.time() + 0.8
     while time.time() < deadline:
         with _lock:
-            if all(_bindings[i]['ok'] is not None for i in queued if i in _bindings):
+            sounds_done = _bypassed[0] or all(_bindings[i]['ok'] is not None for i in queued if i in _bindings)
+            bypass_done = not parsed_b or _bypass_ok[0] is not None
+            transport_done = not parsed_t or transport_duplicate or _transport_ok[0] is not None
+            if sounds_done and bypass_done and transport_done:
                 break
         time.sleep(0.02)
     with _lock:
         registered = [b['combo'] for b in _bindings.values() if b['ok']]
         conflicted = [b['combo'] for b in _bindings.values() if b['ok'] is False]
-    return {'ok': True, 'registered': registered, 'conflicted': conflicted,
-            'skipped': skipped, 'elevated': _is_elevated()}
+    return {'ok': True, 'configured': len(_bindings), 'registered': registered,
+            'conflicted': conflicted, 'duplicates': duplicates, 'skipped': skipped,
+            'bypassed': _bypassed[0], 'bypassCombo': _bypass_combo[0],
+            'bypassRegistered': _bypass_ok[0] is True,
+            'bypassConflict': bool(parsed_b and _bypass_ok[0] is False),
+            'transportCombo': _transport_combo[0] or transport_combo,
+            'transportRegistered': _transport_ok[0] is True,
+            'transportConflict': bool(transport_duplicate or (parsed_t and _transport_ok[0] is False)),
+            'elevated': _is_elevated()}
+
+
+def set_bindings(payload):
+    with _configure_lock:
+        return _set_bindings(payload)
+
+
+def set_bypassed(payload):
+    """Manually suspend/re-arm sound hotkeys without requiring a bypass key binding."""
+    desired = bool((payload or {}).get('bypassed'))
+    with _configure_lock:
+        _set_bypass_state(desired)
+        return status()
 
 
 def status():
     with _lock:
         binds = [{'combo': b['combo'], 'registered': b['ok']} for b in _bindings.values()]
-    return {'ok': True, 'bindings': binds, 'active': _started, 'triggers': _triggers[0],
+    return {'ok': True, 'bindings': binds, 'configured': len(binds), 'active': _started, 'triggers': _triggers[0],
             'elevated': _is_elevated(), 'lastFired': dict(_last_fired) if _last_fired else None,
-            'bypassed': _bypassed[0], 'bypassCombo': _bypass_combo[0]}
+            'lastError': dict(_last_error) if _last_error else None,
+            'bypassed': _bypassed[0], 'bypassCombo': _bypass_combo[0],
+            'bypassRegistered': _bypass_ok[0] is True,
+            'bypassConflict': bool(_bypass_combo[0] and _bypass_ok[0] is False),
+            'transportCombo': _transport_combo[0], 'transportRegistered': _transport_ok[0] is True,
+            'transportConflict': bool(_transport_combo[0] and _transport_ok[0] is False),
+            'transportFired': dict(_last_transport) if _last_transport else None}

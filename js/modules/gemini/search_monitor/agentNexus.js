@@ -19,6 +19,7 @@
             || '<p class="eveos-ai-provider-message">TLO Chat module is unavailable.</p>';
         const nexusBrowserMarkup = window.EveOSNexusBrowser?.markup?.()
             || '<p class="eveos-ai-provider-message">Nexus Browser module is unavailable.</p>';
+        const fileMode = window.location?.protocol === 'file:';
         return `
             <div class="eveos-agent-nexus-intro">
                 <strong>Two peers, separate responsibilities</strong>
@@ -36,11 +37,13 @@
                 ${nexusBrowserMarkup}
             </section>
             <section class="eveos-agent-nexus-panel" data-agent-nexus-panel="management" hidden>
+                ${fileMode ? '<iframe class="eveos-agent-management-embed" title="Local EveOS Agent Management" src="http://127.0.0.1:8765/agent-management-embedded.html" loading="lazy" referrerpolicy="no-referrer"></iframe>' : `
                 <div class="eveos-agent-management-head">
                     <span><strong>Agent Management</strong><small>Private profiles persist only on this machine.</small></span>
                     <button type="button" data-agent-management-action="new">New agent</button>
                 </div>
                 <p class="eveos-agent-management-status" data-agent-management-status>Open this view to load local agent profiles.</p>
+                ${window.EveOSAgentDocuments?.secureBanner?.() || ''}
                 <div class="eveos-agent-tabs" data-agent-management-tabs role="tablist" aria-label="Local agents"></div>
                 <form class="eveos-agent-form" data-agent-management-form hidden>
                     <label>Agent ID<input name="id" maxlength="64" pattern="[a-z0-9][a-z0-9._-]{0,63}" required></label>
@@ -60,6 +63,7 @@
                         <span>Schema v1 · atomic local persistence</span>
                     </div>
                 </form>
+                ${window.EveOSAgentDocuments?.markup?.() || ''}
                 <div class="eveos-agent-management-head">
                     <span><strong>Private Agent Nexus transfer</strong><small>Stop Nexus Browser first. Exports include room messages; review the downloaded file before sharing.</small></span>
                 </div>
@@ -70,6 +74,7 @@
                     <button type="button" data-agent-management-action="apply" hidden>Apply reviewed import</button>
                 </div>
                 <p class="eveos-agent-management-status" data-agent-portable-status>Import adds only new IDs; conflicts block the entire apply. Live bindings and private notes are excluded.</p>
+                `}
             </section>
         `;
     }
@@ -388,7 +393,7 @@
             button.classList.toggle('is-active', active);
             if (button.getAttribute('role') === 'tab') button.setAttribute('aria-selected', String(active));
         });
-        if (view === 'management') loadManagement(false);
+        if (view === 'management' && window.location?.protocol !== 'file:') { loadManagement(false); window.EveOSAgentDocuments?.activate?.(); }
         if (view === 'tlo') window.EveOSTloChat?.activate?.();
         if (view === 'nexus-browser') window.EveOSNexusBrowser?.activate?.();
     }
@@ -420,6 +425,7 @@
         boundRoots.add(container);
         window.EveOSTloChat?.bind?.(container);
         window.EveOSNexusBrowser?.bind?.(container);
+        window.EveOSAgentDocuments?.bind?.(container);
         container.addEventListener('click', handleClick);
         container.addEventListener('submit', (event) => {
             if (!event.target.matches('[data-agent-management-form]')) return;

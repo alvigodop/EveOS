@@ -209,6 +209,13 @@
         if (!finalized) throw new Error('The TLO stream ended before completion.');
     }
 
+    function capabilityContext(response) {
+        try {
+            const value = JSON.parse(response.headers.get('X-EveOS-Capability-Context') || 'null');
+            return value?.schema === 'eveos.agent-capability-context.v1' ? value : null;
+        } catch (_) { return null; }
+    }
+
     async function sendMessage(form, options = {}) {
         const external = options.external === true;
         if (active) {
@@ -242,8 +249,8 @@
             error.code = 'TLO_WORKSPACE_BUSY';
             throw error;
         }
-        const priorHistory = conversation.slice(-40);
-        conversation.push({ role: 'user', content: message });
+        const priorHistory = external ? [] : conversation.slice(-8);
+        if (!external) conversation.push({ role: 'user', content: message });
         bubble('user', message);
         if (!external && input) input.value = '';
         const assistant = bubble('assistant', '');
@@ -264,6 +271,8 @@
                 signal: run.controller.signal
             });
             if (!response.ok) await jsonResponse(response);
+            const context = capabilityContext(response);
+            if (context) options.onContext?.(context);
             await consumeSseResponse(response, {
                 onDelta(piece) {
                     if (run.cancelled || active !== run) return;
@@ -278,7 +287,7 @@
             });
             if (run.cancelled) throw new Error('TLO generation was canceled.');
             const finalText = run.text || 'TLO completed without a visible response.';
-            if (!run.cancelled) conversation.push({ role: 'assistant', content: finalText });
+            if (!run.cancelled && !external) conversation.push({ role: 'assistant', content: finalText });
             return finalText;
         } catch (error) {
             if (run.cancelled || error?.name === 'AbortError') {
@@ -325,6 +334,33 @@
             historyMessages: conversation.length,
             activeRequestId: active?.id || null
         };
+    }
+
+    function boundedWorkspaceHistory(value = conversation) {
+        if (!Array.isArray(value) || value.length > 40) throw new Error('TLO workspace history is not bounded.');
+        let chars = 0;
+        const clean = value.map((entry) => {
+            const role = String(entry?.role || ''), content = String(entry?.content || '').trim(); chars += content.length;
+            if (!['user', 'assistant'].includes(role) || !content || content.length > 32000) throw new Error('TLO workspace history is invalid.'); return { role, content };
+        });
+        if (chars > 192000) throw new Error('TLO workspace history is too large.'); return clean;
+    }
+    async function workspaceHistoryDigest(scopeId, generation, history) {
+        const body = JSON.stringify({ scopeId, generation, history: boundedWorkspaceHistory(history) });
+        const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body)); return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+    async function exportWorkspaceHistory({ scopeId = 'default', generation } = {}) {
+        if (active) throw new Error('TLO history cannot move during an active turn.');
+        const history = boundedWorkspaceHistory(); return { history, digest: await workspaceHistoryDigest(scopeId, generation, history) };
+    }
+    async function hydrateWorkspaceHistory({ scopeId = 'default', generation, history, digest,
+        expectedCurrentDigest, expectedCurrentGeneration } = {}) {
+        if (active) throw new Error('TLO history cannot hydrate during an active turn.');
+        const current = await exportWorkspaceHistory({ scopeId, generation: expectedCurrentGeneration }); if (current.digest !== expectedCurrentDigest) throw new Error('Existing TLO history changed; refusing to replace it.');
+        const clean = boundedWorkspaceHistory(history);
+        if (await workspaceHistoryDigest(scopeId, generation, clean) !== digest) throw new Error('TLO hydration digest mismatch.');
+        clearConversation(); conversation = clean; for (const entry of clean) bubble(entry.role, entry.content);
+        return { digest, messages: clean.length };
     }
 
     async function cancel() {
@@ -397,6 +433,8 @@
         cancel,
         clearConversation,
         sendWorkspaceMessage,
-        workspaceSnapshot
+        workspaceSnapshot,
+        exportWorkspaceHistory,
+        hydrateWorkspaceHistory
     });
 })();

@@ -5,6 +5,7 @@
     if (window.EveOSNexusBrowser) return;
 
     const STATUS_PATH = '/api/nexus-browser/status';
+    const STATUS_TIMEOUT_MS = 15000;
     const ACTION_PATHS = Object.freeze({
         start: '/api/nexus-browser/start',
         stop: '/api/nexus-browser/stop',
@@ -16,6 +17,7 @@
     const DETACHED_WINDOW_NAME = 'eveos-nexus-browser-detached';
     const DETACHED_HEARTBEAT_MS = 4500;
     const WORKSPACE_CONTROL_TYPE = 'eveos:nexus-workspace-control';
+    const RUNTIME_STATE_EVENT = 'eveos:nexus-browser-runtime';
     let root = null;
     let status = null;
     let busy = false;
@@ -243,6 +245,9 @@
                 frame.setAttribute('src', 'about:blank');
             }
         }
+        window.dispatchEvent?.(new CustomEvent(RUNTIME_STATE_EVENT, {
+            detail: { running, state: snapshot?.state || 'unavailable', url: runtimeUrl(snapshot) }
+        }));
     }
 
     async function controlRequest(path, options, timeoutMs) {
@@ -256,7 +261,7 @@
         if (busy) return null;
         const generation = ++statusGeneration;
         try {
-            const snapshot = await controlRequest(STATUS_PATH, null, 5000);
+            const snapshot = await controlRequest(STATUS_PATH, null, STATUS_TIMEOUT_MS);
             if (generation !== statusGeneration) return null;
             render(snapshot);
             return snapshot;
@@ -336,5 +341,8 @@
         return snapshot;
     }
 
-    window.EveOSNexusBrowser = Object.freeze({ markup, bind, activate, refresh });
+    window.EveOSNexusBrowser = Object.freeze({
+        markup, bind, activate, refresh,
+        runtimeSnapshot: () => status ? { ...status } : null
+    });
 })();

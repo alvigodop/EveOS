@@ -34,6 +34,13 @@ ALTERNATE_SOURCES = AlternateSourceFinder(ROOT)
 MEDIA_REFERENCE = MediaReferenceResolver()
 
 
+class PianoHTTPServer(ThreadingHTTPServer):
+    """Local UI server sized for the browser's parallel ES-module burst."""
+
+    daemon_threads = True
+    request_queue_size = 128
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = SERVER_ID
 
@@ -67,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/windows":
             return self._json({"windows": list_windows()})
         if path == "/api/songs":
-            return self._json({"songs": LIBRARY.list()})
+            return self._json({"songs": LIBRARY.list(), "authoritative": True})
         if path == "/api/library/export":
             params = parse_qs(parsed.query)
             ids = [item for raw in params.get("ids", []) for item in raw.split(",") if item]
@@ -340,14 +347,19 @@ class Handler(BaseHTTPRequestHandler):
         except (OSError, FileNotFoundError):
             return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
         content_type = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionError, OSError):
+            pass
 
     def log_message(self, fmt: str, *args) -> None:
+        if self.command == "GET" and urlparse(self.path).path == "/api/status" and len(args) > 1 and str(args[1]) == "200":
+            return
         print(f"[PianoAutoPlayer] {self.address_string()} - {fmt % args}")
 
 
@@ -369,7 +381,7 @@ def _number(value, default: float, minimum: float, maximum: float) -> float:
 
 # Previous checkpoint compatibility: Piano Auto Player v0.5.3 running
 def run(host: str = "127.0.0.1", port: int = 8771) -> None:
-    server = ThreadingHTTPServer((host, port), Handler)
+    server = PianoHTTPServer((host, port), Handler)
     print(f"{STARTUP_LABEL} at http://{host}:{port}")
     print("Press Ctrl+C here, or F7 during playback, to stop safely.")
     try:

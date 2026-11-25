@@ -54,6 +54,18 @@ function messageById(room, messageId) {
   return (room?.messages || []).find((message) => message.id === messageId) || null;
 }
 
+function capabilityContext(value) {
+  if (!value || value.schema !== 'eveos.agent-capability-context.v1'
+      || !/^[a-f0-9]{64}$/.test(String(value.digest || ''))
+      || !Array.isArray(value.packs) || value.packs.length > 7) return null;
+  const packs = value.packs.map((pack) => ({
+    id: String(pack?.id || ''), revision: String(pack?.revision || ''), sha256: String(pack?.sha256 || '')
+  }));
+  if (packs.some((pack) => !/^[a-z0-9-]{1,48}$/.test(pack.id)
+      || !/^[a-f0-9]{24}$/.test(pack.revision) || !/^[a-f0-9]{64}$/.test(pack.sha256))) return null;
+  return { schema: value.schema, digest: value.digest, packs };
+}
+
 function addMessage(room, { id, senderKind, senderId, senderName, text, at, contextOverride }) {
   const message = {
     id, senderKind, senderId, senderName,
@@ -66,11 +78,12 @@ function addMessage(room, { id, senderKind, senderId, senderName, text, at, cont
   return message;
 }
 
-function rememberFinalReceipt(room, requestId, messageId, at = new Date().toISOString()) {
+function rememberFinalReceipt(room, requestId, messageId, at = new Date().toISOString(), sourceMessageId = null) {
   if (!requestId || !messageId) return false;
   room.finalReceipts = Array.isArray(room.finalReceipts) ? room.finalReceipts : [];
   if (room.finalReceipts.some((entry) => entry.requestId === requestId)) return false;
-  room.finalReceipts.push({ requestId, messageId, committedAt: at });
+  room.finalReceipts.push({ requestId, messageId, committedAt: at,
+    ...(sourceMessageId ? { sourceMessageId } : {}) });
   room.finalReceipts = room.finalReceipts.slice(-128);
   return true;
 }
@@ -261,7 +274,7 @@ function priorReply(room, member, sourceMessageId) {
 
 function extendBudget(room, parsed = {}) {
   if (!room?.relay?.active || !Number.isInteger(parsed.budgetIncrease)
-      || parsed.done || parsed.needsUser || parsed.note || parsed.providerCommand
+      || parsed.done || parsed.needsUser || parsed.note
       || parsed.malformedCommand) return 0;
   const relay = room.relay;
   const used = Math.max(0, Number(relay.scheduledTurns || 0));
@@ -288,7 +301,7 @@ function supportsOperation(providers, providerId, operation) {
 module.exports = {
   TURN_CORRELATION_TTL_MS, TURN_CORRELATION_MAX,
   rememberTurnCorrelation, correlationForRequest, forgetTurnCorrelation,
-  roomById, memberById, messageById, addMessage, rememberFinalReceipt, findFinalReceipt, requestStop, setStopped,
+  roomById, memberById, messageById, capabilityContext, addMessage, rememberFinalReceipt, findFinalReceipt, requestStop, setStopped,
   explicitStopReason, cancelDeferredRelays,
   validPending, queueTurn, enqueueNext, pendingRooms, duePendingRooms, nextPendingDelay,
   createRecoveryJournal, resolveOnline, resolveLocal, resolveApp, appConversationMatches, priorReply, safeBudget, extendBudget,

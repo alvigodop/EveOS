@@ -223,6 +223,7 @@
                     renderCategoryDescriptionSettings();
                     renderCategoryClickBehaviorSettings();
                     renderCategoryPinSettings();
+                    window.EveCardLaunchScope?.renderSettings?.(window.currentCategoryCtx, window.ctxWsId);
                     window.EveCategorySettingsAudioflix?.refresh?.();
 
                     if (settingsSlots) {

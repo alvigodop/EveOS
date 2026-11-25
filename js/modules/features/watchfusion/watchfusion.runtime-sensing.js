@@ -72,7 +72,7 @@
             exposureOrigin = '';
         }
         try {
-            const parsed = new URL(mode === 'cloudflare' ? String(snapshot?.hostUrl || '') : '');
+            const parsed = new URL(mode === 'lan' ? '' : String(snapshot?.hostUrl || ''));
             hostExposureOrigin = /^https?:$/.test(parsed.protocol) ? parsed.origin : '';
         } catch {
             hostExposureOrigin = '';
@@ -82,17 +82,18 @@
 
     function runtimeUrl(snapshot = {}) {
         const mode = String(snapshot?.exposureMode || 'local').toLowerCase();
-        const exposed = mode === 'lan' || mode === 'cloudflare';
-        const raw = String(mode === 'cloudflare'
-            ? (snapshot?.directHostUrl || snapshot?.hostUrl || snapshot?.localUrl || snapshot?.publicUrl || snapshot?.url || '')
-            : exposed ? (snapshot?.publicUrl || snapshot?.url || snapshot?.localUrl || '')
-                : (snapshot?.localUrl || snapshot?.url || snapshot?.publicUrl || '')).trim();
-        try {
-            const parsed = new URL(raw);
-            return /^https?:$/.test(parsed.protocol) ? parsed : null;
-        } catch {
-            return null;
+        const { directHostUrl, hostUrl, localUrl, publicUrl, url } = snapshot;
+        const surfaces = mode === 'cloudflare' ? [hostUrl, localUrl, publicUrl, url]
+            : mode === 'lan' ? [publicUrl, url, localUrl]
+                : [hostUrl, url, localUrl];
+        for (const value of [directHostUrl, ...surfaces]) {
+            if (!value) continue;
+            try {
+                const parsed = new URL(value);
+                if (/^https?:$/.test(parsed.protocol)) return parsed;
+            } catch {}
         }
+        return null;
     }
 
     function workspaceUrl(snapshot = {}, { detached = false } = {}) {

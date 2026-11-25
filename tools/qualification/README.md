@@ -13,6 +13,26 @@ node tools/setup/eveos_verify.mjs
 
 `eveos_verify` composes repository hygiene, GitHub Actions security, Queue View pointer stability, recovered structural regression contracts, and the canonical deterministic guardrail suite. Live provider acceptance remains opt-in and separate.
 
+## Codex exec bootstrap
+
+The tracked bootstrap keeps the approval policy global, requires the exact branch and
+HEAD, uses only `workspace-write`, and never retries an unknown execution outcome.
+Its deterministic contract is part of `test:guardrails`:
+
+```powershell
+npm run --silent smoke:codex-exec-bootstrap-contract
+```
+
+The installed Windows CLI can be checked without model inference or mission dispatch:
+
+```powershell
+npm run --silent qualify:codex-exec-bootstrap-native
+```
+
+An actual mission launch remains explicit. Pass `--expected-head`, keep the mission and
+result directory under ignored runtime evidence, and inspect the JSON receipt before any
+manual retry. The bootstrap never publishes or grants TLO execution authority.
+
 If an older workstation still contains Lane 3 `.mjs`/`.cjs` drivers under `data/runtime/smoke-results/`, audit them with:
 
 ```powershell
@@ -98,3 +118,23 @@ git pull --ff-only
 ```
 
 Do not maintain separate downloadable replacement copies of these drivers.
+
+## Mandatory local publication checks (V0.7.5)
+
+Enable the tracked Git hooks once per checkout with `npm run hooks:install`. The
+pre-commit hook rejects files over 450 lines and growth beyond the 440-line
+headroom gate, alongside existing credential, runtime-asset and extension checks.
+The pre-push hook permits only one clean fast-forward update of
+`eve/nexus-machine-spaces` to a matching fetched origin SHA, then runs fresh shared
+guardrails and applicable feature checks for the exact push range. Broad or
+unclassified changes use full guardrails. A failing test
+or changing source blocks publication. Use `git fetch origin` and inspect
+remote drift rather than bypassing the hook. `main` remains protected.
+
+Use [affected qualification](../../docs/EVEOS-QUALIFICATION-ENGINE-V3.md#commit-push-and-chat-handoffs)
+before committing. Full release qualification is available through `npm run verify`.
+
+Git hooks are local and can be bypassed by `--no-verify`, a different Git
+installation/configuration, or direct GitHub API writes. They do **not** replace
+server-side branch rules and required CI checks. A future remote enforcement
+step must be explicitly configured before claims of unbypassable publication.

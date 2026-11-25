@@ -13,7 +13,8 @@ from urllib.parse import urlsplit
 from server_modules import audioflix_spotify_browser_rpc as engine
 from server_modules import audioflix_spotify_connections as connections
 from server_modules import audioflix_spotify_broker_preemption as preemption
-from server_modules import audioflix_spotify_broker_volume as volume_control
+from server_modules import audioflix_spotify_broker_capture as capture_control
+from server_modules import audioflix_spotify_broker_volume as volume_control, audioflix_spotify_queue_lease as delegated
 from server_modules.audioflix_spotify_media_identity import parse_media, media_from_payload
 
 _PROTOCOL_VERSION = 1
@@ -23,12 +24,8 @@ _OWNER_GRACE_S = 15 * 60.0
 _MAX_RECEIPTS = 128
 _COMMAND_WAIT_S = 195.0
 _ENGINE_PATH = "/tools/audioflix/spotify-engine.html"
-
-
 def _now() -> float:
     return time.monotonic()
-
-
 def _safe(value, limit=240) -> str:
     return str(value or "").strip()[:limit]
 
@@ -70,7 +67,7 @@ class SpotifyClientBroker:
         self._tokens: dict[str, str] = {}
         self._owner_client_id = ""
         self._owner_epoch = 0
-        self._track_generation = 0
+        self._track_generation = 0; self._delegated_queue = delegated.DelegatedQueue(self, engine)
         self._engine_epoch = 0
         self._engine_started_at = 0
 
@@ -243,7 +240,7 @@ class SpotifyClientBroker:
                 "ok": True, "connected": True, "clientId": client_id,
                 "isOwner": self._owner_client_id == client_id, "ownerClientId": self._owner_client_id,
                 "ownerEpoch": self._owner_epoch, "engineEpoch": self._engine_epoch,
-                "trackGeneration": self._track_generation, "engine": state or {},
+                "trackGeneration": self._track_generation, "engine": state or {}, "queueLease": self._delegated_queue.projection(client_id),
                 "managed": {
                     "browserRunning": bool(managed.get("browserRunning")),
                     "helperReachable": bool(managed.get("helperReachable")),
@@ -252,6 +249,7 @@ class SpotifyClientBroker:
                     "presentation": managed.get("presentation") or "hidden",
                     "lastError": managed.get("lastError") or "",
                     "importing": bool(managed.get("importing")),
+                    "capture": managed.get("providerCapture") if isinstance(managed.get("providerCapture"), dict) else None,
                 },
             }
 
@@ -296,7 +294,7 @@ class SpotifyClientBroker:
                 if action not in {"status", "detach"} and seq <= client[seq_key]:
                     return {"ok": False, "resyncRequired": True, "reason": "Stale Spotify client command sequence."}
                 if action not in {"status", "detach"}:
-                    client[seq_key] = seq
+                    client[seq_key] = seq; self._delegated_queue.invalidate(client['clientId'], action) if action not in {'queue-arm', 'queue-disarm', 'volume'} else None
                     interrupt, fence = preemption.accept_locked(self, client, action, seq)
                 client["receipts"][command_id] = {
                     "fingerprint": fp, "result": None, "event": threading.Event()
@@ -344,6 +342,7 @@ class SpotifyClientBroker:
         return result
 
     def _execute_transport(self, client_id: str, action: str, args: dict, server_origin: str, connection_id: str) -> dict:
+        if action in {'queue-arm', 'queue-disarm'}: return self._delegated_queue.arm(client_id, args, connection_id, server_origin) if action == 'queue-arm' else self._delegated_queue.disarm(client_id, str(args.get('leaseId') or ''))
         if action in {"release", "detach"}:
             return connections.release(self, client_id, connection_id, reset=action == "detach")
         with self._lock:
@@ -364,14 +363,17 @@ class SpotifyClientBroker:
             mode = _safe(args.get("mode"), 20).lower()
             result = engine.set_presentation(mode, _engine_url(server_origin))
             return {**self._state(client_id), "presentationResult": result, "ok": bool(result.get("ok"))}
+        capture_result = capture_control.execute(self, client_id, action, args, server_origin)
+        if capture_result is not None: return capture_result
         if action == "engine-stop":
             blocked = self._owner_block(client_id, "stopping the engine")
             if blocked: return blocked
+            capture_stopped = capture_control.retire_for_engine_stop()  # while ownership can still release it
             stopped = engine.stop_engine()
             with self._lock:
                 self._owner_client_id = ""
                 self._owner_epoch += 1
-            return {**self._state(client_id), "engineStopResult": stopped, "ok": bool(stopped.get("ok"))}
+            return {**self._state(client_id), "engineStopResult": stopped, "captureStopResult": capture_stopped, "ok": bool(stopped.get("ok"))}
         if action == "play":
             media = media_from_payload(args)
             if not media:

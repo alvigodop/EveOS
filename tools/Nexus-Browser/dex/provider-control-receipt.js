@@ -1,5 +1,6 @@
 const localToolResults = require('./local-tool-result-journal');
 const binding = require('../public/dex-members');
+const protocol = require('../public/dex-protocol');
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue);
   if (!value || typeof value !== 'object') return value;
@@ -24,6 +25,18 @@ function compactBinding(binding = null) {
   };
 }
 
+function localRelayContinuation(room, executorMember) {
+  const relay = room?.relay || {};
+  const remaining = Number(relay.remaining), scheduledTurns = Number(relay.scheduledTurns);
+  const turnBudgetTotal = Number(relay.turnBudgetTotal);
+  if (executorMember?.binding?.targetClassId !== 'local-origin' || relay.active !== true
+      || !Number.isInteger(remaining) || remaining < 1
+      || !Number.isInteger(scheduledTurns) || scheduledTurns < 1
+      || !Number.isInteger(turnBudgetTotal) || turnBudgetTotal !== scheduledTurns + remaining
+      || turnBudgetTotal > protocol.MAX_RELAY_TURNS) return null;
+  return { version: 1, remaining, scheduledTurns, turnBudgetTotal };
+}
+
 function rememberIntent(room, {
   executorMember, sourceMessage, command, agentMessage, turnRequestId, at
 } = {}) {
@@ -35,6 +48,8 @@ function rememberIntent(room, {
     version: 1,
     action: String(command.action).trim().toLowerCase(),
     commandKey: commandKey(command),
+    command: stableValue(command),
+    controlRequestId: `local-control-${turnRequestId || agentMessage.id}`,
     executorMemberId: executorMember.id,
     executorName: executorMember.name || 'Agent',
     executorTarget: compactBinding(executorMember.binding),
@@ -44,6 +59,7 @@ function rememberIntent(room, {
     originTarget: compactBinding(originMember?.binding),
     agentMessageId: agentMessage.id,
     turnRequestId: turnRequestId || null,
+    relayContinuation: localRelayContinuation(room, executorMember),
     createdAt: at || new Date().toISOString()
   };
   room.pendingProviderControlReceipt = pending;
@@ -107,7 +123,7 @@ function applyResult(snapshot, origin, result, requestId, at = new Date().toISOS
   }
   const text = resultText(origin, result, requestId);
   room.messages = Array.isArray(room.messages) ? room.messages : [];
-  room.messages.push({
+  const message = {
     id: `msg-control-receipt-${requestId}`,
     senderKind: 'system',
     senderId: null,
@@ -119,10 +135,12 @@ function applyResult(snapshot, origin, result, requestId, at = new Date().toISOS
       action: origin.action,
       ok: !!result.ok,
       code: result.code || null,
+      roomId: room.id,
       executorMemberId: origin.executorMemberId,
       originMessageId: origin.originMessageId || null
     }
-  });
+  };
+  room.messages.push(message);
   // rememberIntent stores no roomId in pending; derive the exact correlated
   // room here so captured local commands retain their result notification.
   const local = localToolResults.queue(room, { ...pending, roomId: room.id }, result, requestId, at);
@@ -136,7 +154,11 @@ function applyResult(snapshot, origin, result, requestId, at = new Date().toISOS
       roomName: room.name,
       action: origin.action,
       executorName: origin.executorName,
+      executorMemberId: origin.executorMemberId,
+      executorTarget: origin.executorTarget || null,
       originTarget: origin.originTarget || null,
+      sourceMessageId: message.id,
+      relayContinuation: pending.relayContinuation || null,
       text
     }
   };
@@ -148,5 +170,5 @@ function pendingCount(snapshot) {
 
 module.exports = {
   stableValue, commandKey, bindingMatchesSource, compactBinding,
-  rememberIntent, findIntentInRoom, findIntent, activeSourceTurn, resultText, applyResult, pendingCount
+  localRelayContinuation, rememberIntent, findIntentInRoom, findIntent, activeSourceTurn, resultText, applyResult, pendingCount
 };

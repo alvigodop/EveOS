@@ -9,7 +9,10 @@
   <link rel="stylesheet" href="/activity-code.css">
   <link rel="stylesheet" href="/target-classes.css">
   <link rel="stylesheet" href="/dex-mode.css">
+  <link rel="stylesheet" href="/dex-middle-agent-traffic.css">
   <link rel="stylesheet" href="/machine-spaces.css">
+  <link rel="stylesheet" href="/codex-quota.css">
+  <link rel="stylesheet" href="/codex-burn.css">
 </head>
 <body>
   <main class="shell">
@@ -26,8 +29,38 @@
       <button id="dexModeTab" class="mode-tab" type="button">Dex Mode</button>
     </nav>
 
+    <section class="nexus-panel-tools" aria-label="Nexus panel controls">
+      <strong>Workspace panels</strong>
+      <div class="nexus-panel-tools__actions">
+        <button id="nexusProviderUsageToggle" class="secondary" type="button" aria-expanded="false" aria-controls="nexusProviderUsagePanel">Provider usage</button>
+        <button id="nexusCollapsePanels" class="secondary" type="button">Collapse sections</button>
+        <button id="nexusExpandPanels" class="secondary" type="button">Expand sections</button>
+      </div>
+    </section>
+    <div id="nexusProviderUsagePanel" class="nexus-provider-usage" hidden>
+    <section id="nexusCodexQuota" class="codex-quota" data-quota-level="normal" aria-label="Codex capacity">
+      <div class="codex-quota__header">
+        <strong>Codex · usage limits</strong>
+        <span data-quota-status role="status">Checking local Codex quota…</span>
+        <button type="button" data-quota-refresh class="secondary">Refresh</button>
+      </div>
+      <div class="codex-quota__grid">
+        <div class="codex-quota__item" data-window="fiveHour"><strong>5-hour limit</strong><progress max="100"></progress><span data-remaining>Unavailable</span><small data-reset>Reset time unavailable</small></div>
+        <div class="codex-quota__item" data-window="weekly"><strong>Weekly limit</strong><progress max="100"></progress><span data-remaining>Unavailable</span><small data-reset>Reset time unavailable</small></div>
+      </div>
+    </section>
+    <section id="nexusCodexBurn" class="codex-burn" aria-label="Observed Codex burn">
+      <strong>Codex · observed allowance consumption</strong>
+      <div data-burn-text role="status">Checking local observations…</div>
+      <div class="codex-burn__records" data-burn-details></div>
+      <small class="codex-burn__caveat">Observed account percentage-point changes during tasks, not model-specific billing or guaranteed Plus usage.</small>
+    </section>
+    </div>
+
     <div id="baseModePanel">
-      <section class="target-card">
+      <details id="nexusTargetPanel" class="target-card nexus-collapsible" data-nexus-collapsible open>
+        <summary>Provider target</summary>
+        <div class="nexus-collapsible__body">
         <div class="target-row">
           <label for="targetClassSelect">Target class</label>
           <select id="targetClassSelect">
@@ -137,7 +170,8 @@
         </div>
 
         <div id="targetStatus" class="subtle">No target selected.</div>
-      </section>
+        </div>
+      </details>
 
       <details id="terminalRelayPanel" class="terminal-relay">
         <summary><span>Terminal Relay</span><span id="terminalRelayProvider" class="terminal-relay-provider">ChatGPT App</span></summary>
@@ -182,13 +216,13 @@
         </div>
       </section>
 
-      <section class="diagnostics">
-        <div class="diagnostics-title diagnostics-title-row">
-          <span>Bridge diagnostics</span>
+      <details class="diagnostics nexus-collapsible" data-nexus-collapsible>
+        <summary>Bridge diagnostics</summary>
+        <div class="diagnostics-title-row">
           <button id="copyBridgeDiagnostics" class="secondary diagnostics-copy" type="button">Copy</button>
         </div>
         <pre id="diagnostics"></pre>
-      </section>
+      </details>
     </div>
 
     <section id="dexModePanel" hidden data-human-input="disabled">
@@ -200,19 +234,19 @@
         <button id="dexHumanToggle" class="dex-human-toggle" type="button" aria-pressed="false">Enable Human Input</button>
       </div>
       <div class="dex-layout">
-        <aside class="dex-sidebar">
-          <div class="dex-sidebar-head">
-            <h2>Rooms</h2>
+        <details id="dexRoomsPanel" class="dex-sidebar nexus-collapsible" data-nexus-collapsible open>
+          <summary>Rooms</summary>
+          <div class="dex-sidebar-head nexus-collapsible__actions">
             <button id="dexNewRoom" type="button">+ Room</button>
           </div>
           <p class="dex-note">Rooms and transcripts are saved in private, machine-local EveOS data and mirrored in this browser. Each room binds named participants to specific online chats or local agent sessions.</p>
           <div id="dexRoomList" class="dex-room-list"></div>
-        </aside>
+        </details>
 
         <div class="dex-main">
-          <section class="dex-card">
-            <div class="dex-section-head">
-              <h2>Room identity</h2>
+          <details class="dex-card nexus-collapsible" data-nexus-collapsible open>
+            <summary>Room identity</summary>
+            <div class="dex-section-head nexus-collapsible__actions">
               <div class="dex-settings-actions">
                 <button id="dexSaveRoom" type="button">Save</button>
                 <button id="dexClearChat" class="secondary" type="button">Clear chat</button>
@@ -236,13 +270,20 @@
                 <label for="dexMaxTurns">Turn budget</label>
                 <input id="dexMaxTurns" type="number" min="1" value="8">
               </div>
+              <div class="dex-field">
+                <label for="dexMiddleAgent">Engineering middle agent</label>
+                <select id="dexMiddleAgent">
+                  <option value="automatic">Automatic (sole eligible agent)</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+              </div>
             </div>
             <div id="dexRoomStatus" class="dex-room-status">Relay stopped · Idle</div>
-          </section>
+          </details>
 
-          <section class="dex-card">
-            <div class="dex-section-head">
-              <h2>Participants</h2>
+          <details class="dex-card nexus-collapsible" data-nexus-collapsible open>
+            <summary>Participants</summary>
+            <div class="dex-section-head nexus-collapsible__actions">
               <button id="dexRefreshTargets" class="secondary" type="button">Refresh targets</button>
             </div>
             <div class="dex-member-builder">
@@ -277,14 +318,12 @@
             </div>
             <p class="dex-note">Edit a participant to move its room identity to a new provider chat or local session without resetting this room's transcript.</p>
             <div id="dexMemberList" class="dex-member-list"></div>
-          </section>
+          </details>
 
-          <section id="dexMachineSpaces" class="dex-card machine-spaces-card">
-            <div class="dex-section-head">
-              <div>
-                <h2>Machine Spaces</h2>
-                <p class="dex-note">Managed terminals are room resources, not participants. Agent commands wait for your local allow-once approval.</p>
-              </div>
+          <details id="dexMachineSpaces" class="dex-card machine-spaces-card nexus-collapsible" data-nexus-collapsible>
+            <summary>Machine Spaces</summary>
+            <div class="dex-section-head nexus-collapsible__actions">
+              <p class="dex-note">Managed terminals are room resources, not participants. Agent commands wait for your local allow-once approval.</p>
               <div class="dex-settings-actions">
                 <button id="machineCreateSpace" type="button">+ Space</button>
                 <button id="machineArchiveSpace" class="secondary" type="button">Archive</button>
@@ -319,7 +358,15 @@
             <div id="machineSpaceStatus" class="dex-room-status">Choose a room to inspect its Machine Spaces.</div>
             <div id="machineSpaceResources" class="machine-resource-list"></div>
             <div id="machineSpaceRequests" class="machine-request-list"></div>
-          </section>
+          </details>
+
+          <details id="dexMiddleAgentTraffic" class="dex-card nexus-collapsible middle-agent-traffic" data-nexus-collapsible open>
+            <summary>Middle Agent Traffic</summary>
+            <div class="nexus-collapsible__actions"><span id="dexMiddleAgentTrafficStatus" class="middle-traffic-status">No room selected</span></div>
+            <p class="dex-note">Visible evidence, public reasoning summaries, decisions, actions and receipts. Private model chain-of-thought and sensitive terminal output are never exposed.</p>
+            <div id="dexMiddleAgentTrafficFilters" class="middle-traffic-filters" aria-label="Middle agent traffic filters"></div>
+            <div id="dexMiddleAgentTrafficList" class="middle-traffic-list" aria-live="polite"></div>
+          </details>
 
           <section id="dexTranscript" class="dex-transcript" aria-live="polite"></section>
 
@@ -373,10 +420,16 @@
   <script src="/dex-runtime-client.js"></script>
   <script src="/dex-session-policy.js"></script>
   <script src="/dex-human-control.js"></script>
+  <script src="/dex-receipt-presentation.js"></script>
+  <script src="/dex-middle-agent-traffic.js"></script>
   <script src="/dex-room-view.js"></script>
   <script src="/dex-relay-timing.js"></script>
   <script src="/dex-mode.js"></script>
+  <script src="/dex-tui-launch-ui.js"></script>
   <script src="/machine-dialog.js"></script>
   <script src="/machine-spaces-ui.js"></script>
+  <script src="/nexus-panel-controls.js"></script>
+  <script src="/codex-quota-ui.js"></script>
+  <script src="/codex-burn-ui.js"></script>
 </body>
 </html>

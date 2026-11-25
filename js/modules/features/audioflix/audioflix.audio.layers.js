@@ -8,16 +8,17 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
 
     function createController(deps) {
         const activeLayers = new Map();
+        const layerQueues = new Map();
+        const pendingLayers = new Map();
         const itemEpochs = new Map();
         let globalEpoch = 0;
         let layerSequence = 0;
+        let pendingSequence = 0;
         let progressTimer = 0;
-        let pendingTotal = 0;
+        let pendingTotal = 0, paused = false;
         const pendingByItem = new Map();
-        const MAX_LAYERS_PER_ITEM = 12;
-        const MAX_LAYERS_TOTAL = 32;
-        const MAX_PENDING_PER_ITEM = 2;
-        const MAX_PENDING_TOTAL = 6;
+        const MAX_LAYERS_PER_ITEM = 12, MAX_LAYERS_TOTAL = 32;
+        const MAX_PENDING_PER_ITEM = 2, MAX_PENDING_TOTAL = 6;
 
         const itemId = (item) => String(item?.id ?? item?.url ?? '');
         const epoch = (id) => Number(itemEpochs.get(id) || 0);
@@ -36,7 +37,8 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         const currentTimeOf = (record, at = now()) => {
             const playerTime = Number(record?.player?.currentTime);
             if (Number.isFinite(playerTime) && playerTime >= 0) return playerTime;
-            const elapsed = Math.max(0, (at - Number(record?.startedAt || at)) / 1000);
+            const effectiveAt = Number(record?.pausedAt || 0) || at;
+            const elapsed = Math.max(0, (effectiveAt - Number(record?.startedAt || effectiveAt) - Number(record?.pausedDurationMs || 0)) / 1000);
             const duration = durationOf(record);
             return duration ? Math.min(duration, elapsed) : elapsed;
         };
@@ -55,8 +57,10 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 native: record.native === true
             };
         };
-        const itemSnapshot = (id) => (activeLayers.get(String(id ?? '')) || [])
-            .map(record => layerSnapshot(record));
+        const itemSnapshot = (id) => {
+            const key = String(id ?? '');
+            return (activeLayers.get(key) || []).map(record => layerSnapshot(record)).concat(pendingLayers.get(key) || []);
+        };
 
         function emit(id) {
             const detail = { itemId: String(id ?? ''), voices: itemSnapshot(id) };
@@ -65,6 +69,21 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 window.dispatchEvent(new window.CustomEvent('eve:audioflix-layer-voices', { detail }));
             }
             return detail;
+        }
+
+        function addPending(id, item) {
+            const duration = Number(item?.duration) || 0;
+            const record = { id: `${id}::pending:${++pendingSequence}`, sequence: pendingSequence, itemId: id,
+                title: String(item?.title || 'Layered sound'), currentTime: 0, duration,
+                remaining: duration, progress: 0, pending: true };
+            if (!pendingLayers.has(id)) pendingLayers.set(id, []);
+            pendingLayers.get(id).push(record); emit(id); return record;
+        }
+
+        function removePending(id, record) {
+            const pending = pendingLayers.get(id); if (!pending) return;
+            const index = pending.indexOf(record); if (index >= 0) pending.splice(index, 1);
+            if (!pending.length) pendingLayers.delete(id); emit(id);
         }
 
         function stopProgressTimer() {
@@ -112,6 +131,8 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 title: String(item?.title || 'Layered sound'),
                 volume: window.EveAudioflixState.normalizeVolume(item?.volume, 1),
                 startedAt: now(),
+                pausedAt: paused ? now() : 0,
+                pausedDurationMs: 0,
                 duration: Number(values.duration ?? item?.duration) || 0,
                 ...values
             };
@@ -148,9 +169,28 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             pruneForAdd(id);
             if (!activeLayers.has(id)) activeLayers.set(id, []);
             activeLayers.get(id).push(record);
-            ensureProgressTimer();
+            if (!paused) ensureProgressTimer();
             emit(id);
             return record;
+        }
+
+        function projectExternalLayer(detail = {}) {
+            const id = String(detail.itemId || '').trim();
+            const duration = Math.max(0, Number(detail.duration || 0));
+            if (!id || !duration) return false;
+            const externalId = String(detail.voiceId || `external:${id}`);
+            const existing = activeLayers.get(id) || [];
+            existing.filter(record => record.externalId === externalId).forEach(record => removeLayer(id, record));
+            const firedAt = Number(detail.startedAt || 0);
+            addLayer(id, makeRecord(id, { id, type: 'sound', title: detail.title || 'Hotkey sound' }, {
+                id: externalId,
+                externalId,
+                native: true,
+                duration,
+                startedAt: firedAt > 0 ? firedAt : now(),
+                stop: () => window.EveAudioflixNative?.clearVoices?.(externalId)
+            }));
+            return true;
         }
 
         function reserveStart(id) {
@@ -172,36 +212,30 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             try { await deps.stopUrlPlayback?.(id); } catch {}
         }
 
-        async function layerPlay(item) {
-            if (!item?.url) return false;
-            let safeItem = typeof item === 'object' ? { ...item } : { url: item };
-            const id = itemId(safeItem);
+        async function startLayer(safeItem, id, itemStartEpoch, globalStartEpoch) {
             if (!reserveStart(id)) return false;
             try {
-            const itemStartEpoch = epoch(id);
-            const globalStartEpoch = globalEpoch;
             const cancelled = () => isCancelled(id, itemStartEpoch, globalStartEpoch);
-
-            if (deps.shouldPreferUrl?.(safeItem)) {
-                const played = await deps.playUrlItem(safeItem);
-                if (!cancelled()) return played;
-                await cancelStartedUrl(id);
-                return false;
-            }
             if (window.EveAudioflixAudioSource?.needsResolution?.(safeItem.url)) {
                 try {
                     safeItem = await window.EveAudioflixAudioSource.resolveItem(safeItem);
                 } catch (error) {
                     if (cancelled()) return false;
-                    if (deps.canPlayUrl?.(safeItem)) {
-                        const played = await deps.playUrlItem(safeItem);
-                        if (!cancelled()) return played;
-                        await cancelStartedUrl(id);
-                        return false;
+                    if (!deps.canPlayUrl?.(safeItem)) {
+                        console.warn('[Audioflix] Failed to resolve stream URL for layer:', error); return false;
                     }
-                    console.warn('[Audioflix] Failed to resolve stream URL for layer:', error);
-                    return false;
                 }
+            }
+            const provider = window.EveAudioflixUrlProviders?.providerFor?.(safeItem.url) || '', independentSound = safeItem.type === 'sound' && (provider === 'direct' || /^(?:file:|blob:|data:audio\/)/i.test(safeItem.url));
+            if (deps.shouldPreferUrl?.(safeItem) && !independentSound) {
+                let record = null;
+                const layered = await window.EveAudioflixProviderLayers?.start?.(safeItem, {
+                    cancelled, canUseShared: () => deps.canUseSharedUrlLayer?.(safeItem) !== false,
+                    playShared: () => deps.playUrlItem(safeItem), cancelShared: () => cancelStartedUrl(id),
+                    onStart: value => { record = makeRecord(id, safeItem, { player: value.player, provider: true, stop: value.stop, setVolume: value.setVolume }); addLayer(id, record); if (paused) value.player?.pause?.(); },
+                    onProgress: () => { if (record) emit(id); }, onEnded: () => { if (record) removeLayer(id, record); }, onError: () => { if (record) removeLayer(id, record); }
+                });
+                if (layered?.handled) return layered.played;
             }
             if (cancelled()) return false;
 
@@ -216,7 +250,8 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 await deps.stopNativeItem?.(id);
                 return false;
             }
-            if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+            const nativePolicy = window.EveAudioflixPlaybackPolicy?.policyOf?.(safeItem), customNative = nativePolicy?.outputMode === 'custom' && nativePolicy.outputKind === 'native' && nativePolicy.outputId;
+            if (customNative || window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
                 try {
                     const buffer = await deps.getDecodedBuffer(safeItem.url);
                     if (cancelled()) return false;
@@ -228,7 +263,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                         sampleRate: buffer.sampleRate,
                         channels: 1,
                         volume: outputVolume(safeItem.volume),
-                        voiceId: record.id
+                        voiceId: record.id, deviceId: customNative ? nativePolicy.outputId : ''
                     });
                     if (cancelled()) {
                         if (ok) await window.EveAudioflixNative?.clearVoices?.(record.id);
@@ -244,33 +279,34 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                     console.warn('[Audioflix] native voice failed for layer, falling back:', error);
                 }
             }
-
             const player = new Audio();
             player.crossOrigin = 'anonymous';
             player.src = safeItem.url;
             player.loop = false;
             player.volume = outputVolume(safeItem.volume);
-            window.EveAudioflixAudio?.getWaveformController?.()?.attachPlayer?.(player);
-            const sinkId = deps.state().preferredSinkId;
+            const releaseWaveform = window.EveAudioflixAudio?.getWaveformController?.()?.attachLayerPlayer?.(player);
+            const policy = window.EveAudioflixPlaybackPolicy?.policyOf?.(safeItem), sinkId = policy?.outputMode === 'custom' && policy.outputKind === 'browser' ? policy.outputId : deps.state().preferredSinkId;
             if (sinkId && typeof player.setSinkId === 'function') {
                 try { await player.setSinkId(sinkId); } catch {}
             }
-            if (cancelled()) return false;
+            if (cancelled()) { releaseWaveform?.(); return false; }
             const record = makeRecord(id, safeItem, {
                 player,
                 stop() {
                     player.pause();
                     player.currentTime = 0;
+                    releaseWaveform?.();
                 }
             });
             addLayer(id, record);
             player.addEventListener('loadedmetadata', () => emit(id));
             player.addEventListener('durationchange', () => emit(id));
-            player.addEventListener('timeupdate', () => emit(id));
-            player.addEventListener('ended', () => removeLayer(id, record));
+            player.addEventListener('ended', () => { releaseWaveform?.(); removeLayer(id, record); });
             try {
                 await player.play();
+                if (paused) player.pause();
             } catch (error) {
+                releaseWaveform?.();
                 removeLayer(id, record);
                 throw error;
             }
@@ -283,6 +319,28 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             } finally {
                 releaseStart(id);
             }
+        }
+
+        async function layerPlay(item) {
+            if (!item?.url) return false;
+            const safeItem = typeof item === 'object' ? { ...item } : { url: item };
+            const id = itemId(safeItem), itemStartEpoch = epoch(id), globalStartEpoch = globalEpoch;
+            const queue = layerQueues.get(id) || { tail: Promise.resolve(false), pending: 0 };
+            if (queue.pending >= MAX_LAYERS_PER_ITEM) return false;
+            const followsPending = queue.pending > 0;
+            const pendingRecord = addPending(id, safeItem);
+            queue.pending += 1;
+            const run = () => {
+                if (isCancelled(id, itemStartEpoch, globalStartEpoch)) return false;
+                return startLayer(safeItem, id, itemStartEpoch, globalStartEpoch);
+            };
+            const operation = followsPending ? queue.tail.catch(() => false).then(run) : Promise.resolve(run());
+            queue.tail = operation.catch(() => false); layerQueues.set(id, queue);
+            return operation.finally(() => {
+                removePending(id, pendingRecord);
+                queue.pending = Math.max(0, queue.pending - 1);
+                if (!queue.pending && layerQueues.get(id) === queue) layerQueues.delete(id);
+            });
         }
 
         function stopLayer(layer) {
@@ -299,7 +357,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             itemEpochs.set(id, epoch(id) + 1);
             const layers = activeLayers.get(id) || [];
             const pending = layers.map(stopLayer).filter(result => result?.then);
-            activeLayers.delete(id);
+            activeLayers.delete(id); pendingLayers.delete(id);
             emit(id);
             if (!activeLayers.size) stopProgressTimer();
             return pending;
@@ -308,16 +366,49 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         function stopAll() {
             globalEpoch += 1;
             itemEpochs.clear();
-            const ids = [...activeLayers.keys()];
+            const ids = [...new Set([...activeLayers.keys(), ...pendingLayers.keys()])];
             const pending = [];
             activeLayers.forEach(layers => layers.forEach(layer => {
                 const result = stopLayer(layer);
                 if (result?.then) pending.push(result);
             }));
             activeLayers.clear();
+            pendingLayers.clear();
+            paused = false;
+            window.EveAudioflixNative?.setVoicesPaused?.(false, { allDevices: true });
             stopProgressTimer();
             ids.forEach(emit);
             return pending;
+        }
+
+        async function pauseAll() {
+            if (paused) return false;
+            paused = true;
+            const at = now();
+            activeLayers.forEach(records => records.forEach(record => {
+                if (!record.pausedAt) record.pausedAt = at;
+                record.player?.pause?.();
+            }));
+            stopProgressTimer();
+            await window.EveAudioflixNative?.setVoicesPaused?.(true, { allDevices: true }).catch?.(() => false);
+            activeLayers.forEach((_records, id) => emit(id));
+            return true;
+        }
+
+        async function resumeAll() {
+            if (!paused) return false;
+            paused = false;
+            const at = now(), pending = [];
+            activeLayers.forEach(records => records.forEach(record => {
+                if (record.pausedAt) record.pausedDurationMs = Number(record.pausedDurationMs || 0) + Math.max(0, at - record.pausedAt);
+                record.pausedAt = 0;
+                if (record.player?.paused) pending.push(Promise.resolve(record.player.play()).catch(() => false));
+            }));
+            pending.push(Promise.resolve(window.EveAudioflixNative?.setVoicesPaused?.(false, { allDevices: true })).catch(() => false));
+            ensureProgressTimer();
+            activeLayers.forEach((_records, id) => emit(id));
+            await Promise.allSettled(pending);
+            return true;
         }
 
         function updateVolume(value, volume, options = {}) {
@@ -336,7 +427,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             if (layer?.native) window.EveAudioflixNative?.setVoiceVolume?.(layer.id, outputVolume(layer.volume));
         })));
 
-        return { layerPlay, stopItemLayers, stopAll, updateVolume, getSnapshot: itemSnapshot };
+        return { layerPlay, projectExternalLayer, stopItemLayers, stopAll, pauseAll, resumeAll, isPaused: () => paused, hasLayers: () => activeLayers.size > 0, updateVolume, getSnapshot: itemSnapshot };
     }
 
     Object.assign(ns, { ready: true, createController });

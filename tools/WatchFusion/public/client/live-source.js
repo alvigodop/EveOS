@@ -397,13 +397,25 @@
   };
   $('liveControls').addEventListener('click',event=>{
     const button=event.target.closest('[data-live-action]');if(!button||!canControl())return;
+    window.watchFusionRoomSyncLog?.note?.('ui-intent',{action:button.dataset.liveAction,positionMs:Number.isFinite(Number(button.dataset.value))?Math.round(Number(button.dataset.value)*1000):null});
     if(window.watchFusionLinkedTab?.active?.())window.watchFusionLinkedTab.control(button.dataset.liveAction,Number(button.dataset.value));
     else receiver?.control(button.dataset.liveAction,Number(button.dataset.value));
   });
-  for(const [id,action] of [['liveSeek','seek'],['liveRate','rate'],['liveVolume','volume']])$(id).onchange=()=>{
+  for(const [id,action] of [['liveSeek','seek'],['liveRate','rate']])$(id).onchange=()=>{
     if(!canControl())return;const value=Number($(id).value);
+    window.watchFusionRoomSyncLog?.note?.('ui-intent',action==='seek'?{action,positionMs:Math.round(value*1000)}:{action,rate:value});
     if(window.watchFusionLinkedTab?.active?.())window.watchFusionLinkedTab.control(action,value);else receiver?.control(action,value);
   };
+  const liveVolume = $('liveVolume');
+  function updateLiveVolume(commit) {
+    if (!canControl()) return;
+    const link = window.watchFusionLinkedTab;
+    if (link?.active?.()) link.queueVolume(liveVolume.valueAsNumber,commit);
+    else if (commit) receiver?.control('volume',liveVolume.valueAsNumber);
+    if(commit) window.watchFusionRoomSyncLog?.note?.('ui-intent',{action:'volume',volumePct:Math.round(liveVolume.valueAsNumber*100)});
+  }
+  let lastVolumeIntentAt=-Infinity;liveVolume.addEventListener('input', () => { updateLiveVolume(false); const at=performance.now();if(at-lastVolumeIntentAt>600){lastVolumeIntentAt=at;window.watchFusionRoomSyncLog?.note?.('ui-intent',{action:'volume-preview',volumePct:Math.round(liveVolume.valueAsNumber*100)});} });
+  liveVolume.addEventListener('change', () => updateLiveVolume(true));
   window.watchFusionLive = { load, disconnect, share, unload, diagnostics: () => receiver?.diagnostics?.() || Promise.resolve([]) };
   connectionActions();
   window.watchPartyProviders.register({ id: 'live', supports: source => source?.kind === 'live', load: async source => load(source), unload });

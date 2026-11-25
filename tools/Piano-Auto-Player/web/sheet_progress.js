@@ -149,10 +149,37 @@ function buildRuntimeRanges(text, requestedProfile, runtimeTotal) {
   return { ranges:buildSheetEventRanges(text, profile), profile };
 }
 
+export function buildSheetProgressPreview(text, requestedProfile, currentIndex, runtimeTotal, limit = 600) {
+  const value = String(text || "");
+  const boundedLimit = Math.max(80, Math.min(1200, Number(limit) || 600));
+  const { ranges, profile } = buildRuntimeRanges(value, requestedProfile, runtimeTotal);
+  const index = Math.max(0, Math.min(ranges.length, Number(currentIndex) || 0));
+  const current = index > 0 ? ranges[index - 1] : null;
+  let start = 0;
+  if (current && value.length > boundedLimit) {
+    start = Math.max(0, Math.min(value.length - boundedLimit, current.start - Math.floor(boundedLimit * 0.38)));
+  }
+  const end = Math.min(value.length, start + boundedLimit);
+  // These are the Backend parser's event indices, never an EveOS reparse.
+  // A mismatched runtime count cannot be used as a seek target.
+  const mapped = Number(runtimeTotal) > 0 && ranges.length === Number(runtimeTotal);
+  const events = mapped ? ranges.filter(event => event.kind !== "pause" && event.start >= start && event.end <= end)
+    .slice(0, 160).map(event => ({ index: event.index, start: event.start - start, end: event.end - start, kind: event.kind })) : [];
+  return {
+    text: value.slice(start, end), events, mapped,
+    currentStart: current && current.start < end ? Math.max(0, current.start - start) : -1,
+    currentEnd: current && current.start < end ? Math.min(end - start, current.end - start) : -1,
+    index,
+    total: ranges.length,
+    profile
+  };
+}
+
 function currentIndexFromStatus(status, fallback = 0) {
   const current = Number(status?.current_index || 0);
   if (["playing", "countdown", "paused"].includes(status?.status) && current > 0) return current;
   if (status?.status === "complete") return 0;
+  if (status?.status === "idle" && Number(status?.resume_index || 0) > 0) return Number(status.resume_index);
   if (["idle", "stopped", "error"].includes(status?.status)) return 0;
   return Math.max(0, Number(fallback || 0));
 }
@@ -251,7 +278,7 @@ function setup(textarea) {
     const totalChanged = nextTotal > 0 && nextTotal !== ranges.length;
     if (profileChanged || totalChanged) rebuild(statusProfile, nextTotal, true);
     runtimeTotal = nextTotal || runtimeTotal;
-    currentIndex = currentIndexFromStatus(status, Number(textarea.dataset.seekFallback || 0));
+    currentIndex = currentIndexFromStatus(status, currentIndex || Number(textarea.dataset.seekFallback || 0));
     queueRender(currentIndex !== lastIndex && currentIndex > 0);
     if (status?.status === "complete") {
       requestAnimationFrame(() => {
@@ -270,16 +297,7 @@ function setup(textarea) {
   window.addEventListener("piano:sheet-progress-seek", event => { const index = Number(event.detail?.index || 0); if (index > 0) { currentIndex = index; queueRender(true); } });
   window.addEventListener("piano:sheet-rebuild", () => rebuild(textarea.dataset.timingProfile || "expressive", runtimeTotal, true));
 
-  const statusLoop = async () => {
-    try {
-      const response = await fetch("/api/status", { cache:"no-store" });
-      if (response.ok) applyStatus(await response.json());
-    } catch (_) {}
-    window.setTimeout(statusLoop, 500);
-  };
-
   rebuild();
-  statusLoop();
 }
 
 function boot() {
@@ -289,6 +307,7 @@ function boot() {
 }
 
 if (typeof document !== "undefined") {
+  window.PianoSheetProgressProjection = Object.freeze({ buildPreview:buildSheetProgressPreview });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once:true });
   else boot();
 }

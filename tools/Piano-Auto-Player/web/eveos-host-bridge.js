@@ -2,7 +2,14 @@
   'use strict';
 
   const KEY = 'eveos:piano-host-context';
+  const MODULE_RETRY_DELAYS = [250, 700, 1500];
   let context = null;
+  let nativeRequestId = 0;
+  const nativePending = new Map();
+  let workspaceReady = false, workspaceLoad = null, sheetProgressReady = false, sheetProgressLoad = null;
+  const failedModules = new Set();
+  const eveHost = window.parent && window.parent !== window ? window.parent : window.opener;
+  let eveOrigin = '*';
 
   // Prevent the three legacy Piano surfaces from flashing as separate workspaces while the
   // queue/metadata controllers hydrate. Their DOM remains available as a compatibility bridge;
@@ -14,7 +21,37 @@
 
   function accept(event) {
     const payload = event?.data;
-    if (!payload || payload.type !== 'eveos:audioflix-context') return;
+    if (!payload) return;
+    if (payload.type === 'piano:eveos-native-response') {
+      if (!eveHost || event.source !== eveHost) return;
+      const pending = nativePending.get(Number(payload.requestId));
+      if (!pending) return;
+      nativePending.delete(Number(payload.requestId)); clearTimeout(pending.timer);
+      if (payload.ok) pending.resolve(payload.result); else pending.reject(new Error(payload.message || 'Server-owned Piano request failed.'));
+      return;
+    }
+    if (payload.type === 'eveos:piano-refresh') {
+      if (!eveHost || event.source !== eveHost) return;
+      const text = document.getElementById('statusText');
+      const chip = document.getElementById('statusChip');
+      if (text) text.textContent = 'Reloading Piano workspace…';
+      if (chip) chip.dataset.state = 'countdown';
+      window.location.reload();
+      return;
+    }
+    if (payload.type === 'eveos:piano-pcm-failed') {
+      const pcm = context?.pianoPcm || {};
+      if (!eveHost || event.source !== eveHost || payload.token !== pcm.token
+          || Number(payload.generation) !== Number(pcm.generation)) return;
+      context = { ...context, pianoPcm: { ...pcm, active: false, error: String(payload.message || 'Native Piano PCM failed.') } };
+      window.dispatchEvent(new CustomEvent('piano:eveos-context', { detail: context }));
+      return;
+    }
+    if (payload.type !== 'eveos:audioflix-context') return;
+    if (!eveHost || event.source !== eveHost) return;
+    const pcm = payload.context?.pianoPcm || {};
+    if (pcm.requested && (String(pcm.token || '').length < 32 || Number(pcm.generation || 0) < 1)) return;
+    eveOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
     context = payload.context && typeof payload.context === 'object' ? payload.context : null;
     try {
       if (context) sessionStorage.setItem(KEY, JSON.stringify(context));
@@ -31,22 +68,89 @@
     const chip = document.getElementById('statusChip');
     if (text) text.textContent = message;
     if (chip) chip.dataset.state = 'error';
+    failedModules.add(name);
     window.dispatchEvent(new CustomEvent('piano:module-error', { detail: { name, message } }));
+  }
+
+  function reportModuleRecovery(name) {
+    if (!failedModules.delete(name)) return;
+    const text = document.getElementById('statusText');
+    const chip = document.getElementById('statusChip');
+    if (text?.textContent?.startsWith(`Failed to load Piano ${name}:`)) text.textContent = 'Piano workspace recovered.';
+    if (chip?.dataset.state === 'error') chip.dataset.state = 'idle';
+    window.dispatchEvent(new CustomEvent('piano:module-recovered', { detail: { name } }));
+  }
+
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const retryUrl = (url, attempt) => `${url}${url.includes('?') ? '&' : '?'}retry=${attempt}`;
+  async function importWithRetry(initialImport, url) {
+    let lastError;
+    for (let attempt = 0; attempt <= MODULE_RETRY_DELAYS.length; attempt += 1) {
+      try { return await (attempt === 0 ? initialImport() : import(retryUrl(url, attempt))); }
+      catch (error) {
+        lastError = error;
+        if (attempt < MODULE_RETRY_DELAYS.length) await wait(MODULE_RETRY_DELAYS[attempt]);
+      }
+    }
+    throw lastError;
   }
 
   try { context = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (_) {}
   window.addEventListener('message', accept);
-  window.PianoEveOS = Object.freeze({ getContext: () => context ? { ...context } : null });
-  if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: 'piano:eveos-ready' }, '*');
+  window.addEventListener('piano:audio-route', event => eveHost?.postMessage?.({ type: 'piano:eveos-audio-route', route: event.detail || null }, eveOrigin));
+  window.PianoEveOS = Object.freeze({
+    getContext: () => context ? { ...context } : null,
+    native(action, payload = {}) { const native = context?.pianoNative;
+      if (!eveHost || !native?.available || String(native.token || '').length < 32)
+        return Promise.reject(new Error('Server-owned Piano is unavailable.'));
+      const requestId = ++nativeRequestId;
+      return new Promise((resolve, reject) => { const timer = setTimeout(() => {
+        nativePending.delete(requestId); reject(new Error('Server-owned Piano request timed out.'));
+      }, action === 'start' ? 35000 : 6000);
+      nativePending.set(requestId, { resolve, reject, timer });
+      eveHost.postMessage({ type: 'piano:eveos-native-request', requestId, action,
+        payload, token: native.token }, eveOrigin); }); },
+    postPcm(detail = {}) { const pcm = context?.pianoPcm || {};
+      if (!eveHost || !pcm.active || detail.token !== pcm.token || detail.generation !== pcm.generation) return false;
+      eveHost.postMessage({ type: 'piano:eveos-pcm', ...detail }, eveOrigin, [detail.audio]); return true; },
+    reportPcmFailure(message) { eveHost?.postMessage?.({ type: 'piano:eveos-pcm-client-failed', message,
+      token: context?.pianoPcm?.token, generation: context?.pianoPcm?.generation }, eveOrigin); }
+  });
+  eveHost?.postMessage?.({ type: 'piano:eveos-ready' }, eveOrigin);
+
+  function installReattachControl() {
+    const detached = new URL(window.location.href).searchParams.get('eveosDetached') === '1';
+    const topbar = document.querySelector('.topbar');
+    if (!detached || !window.opener || !topbar || document.getElementById('reattachEveOSBtn')) return;
+    document.documentElement.classList.add('eveos-piano-detached');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'reattachEveOSBtn';
+    button.className = 'ghost piano-reattach';
+    button.textContent = 'Reattach to EveOS';
+    button.addEventListener('click', () => window.opener?.postMessage?.({ type: 'piano:eveos-reattach-request' }, '*'));
+    topbar.append(button);
   }
 
-  window.addEventListener('load', () => {
-    import('./player_queue.js')
-      .then(() => import('./player_queue_advanced.js'))
-      .then(() => import('./piano_unified_workspace.js'))
-      .catch(error => reportModuleFailure('My Songs workspace', error));
-    import('./sheet_progress.js?v=bc691cc2')
-      .catch(error => reportModuleFailure('Sheet Progress', error));
-  });
+  function loadWorkspaceModules() {
+    installReattachControl();
+    if (!workspaceReady && !workspaceLoad) {
+      workspaceLoad = importWithRetry(() => import('./player_queue.js'), './player_queue.js')
+        .then(() => importWithRetry(() => import('./player_queue_advanced.js'), './player_queue_advanced.js'))
+        .then(() => importWithRetry(() => import('./piano_unified_workspace.js'), './piano_unified_workspace.js'))
+        .then(() => { workspaceReady = true; reportModuleRecovery('My Songs workspace'); })
+        .catch(error => reportModuleFailure('My Songs workspace', error))
+        .finally(() => { workspaceLoad = null; });
+    }
+    if (!sheetProgressReady && !sheetProgressLoad) {
+      sheetProgressLoad = importWithRetry(() => import('./sheet_progress.js?v=bc691cc2'), './sheet_progress.js?v=bc691cc2')
+        .then(() => { sheetProgressReady = true; reportModuleRecovery('Sheet Progress'); })
+        .catch(error => reportModuleFailure('Sheet Progress', error))
+        .finally(() => { sheetProgressLoad = null; });
+    }
+  }
+
+  window.addEventListener('piano:eveos-context', loadWorkspaceModules);
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', loadWorkspaceModules, { once: true });
+  else loadWorkspaceModules();
 })();

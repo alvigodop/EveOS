@@ -10,7 +10,7 @@ import threading
 from dataclasses import dataclass, field
 from http import HTTPStatus
 
-from server_modules import agent_management_store, eveos_ports, gemini_control, local_moe_control, tlo_schema_cache
+from server_modules import agent_capability_registry, agent_management_store, eveos_ports, gemini_control, local_moe_control, tlo_backend_transport_route, tlo_schema_cache
 from server_modules.eve_state_store_api_helpers import query_value, send_json
 
 
@@ -19,8 +19,9 @@ HARNESS_HOST = "127.0.0.1"
 HARNESS_PORT = eveos_ports.service_port("LOCAL_MOE_HARNESS_PORT")
 MAX_BODY_BYTES = 256 * 1024
 MAX_MESSAGE_CHARS = 16_000
-MAX_HISTORY_MESSAGES = 40
-MAX_HISTORY_CHARS = 32_000
+MAX_HISTORY_MESSAGES = 8
+MAX_HISTORY_CHARS = 16_000
+MAX_HISTORY_TOTAL_CHARS = 24_000
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,96}$")
 _ACTIVE_LOCK = threading.RLock()
 _SCHEMA_CACHE_LOCK = tlo_schema_cache.SCHEMA_CACHE_LOCK
@@ -37,8 +38,6 @@ class ActiveStream:
 
 
 _ACTIVE: dict[str, ActiveStream] = {}
-
-
 class TloChatError(ValueError):
     def __init__(self, message: str, *, status=HTTPStatus.BAD_REQUEST, state="invalid_request"):
         super().__init__(message)
@@ -46,9 +45,14 @@ class TloChatError(ValueError):
         self.state = state
 
 
+configure_phase3d_transport = tlo_backend_transport_route.configure
+
+
 def _authorize_tlo_ui(handler) -> bool:
     """Allow only loopback EveOS UI callers, including the supported file:// surface."""
-    if gemini_control.request_can_control(handler):
+    if gemini_control.request_can_control(handler) and (
+        tlo_backend_transport_route.browser_owner_allowed("default")
+    ):
         return True
     send_json(handler, HTTPStatus.FORBIDDEN, {
         "ok": False,
@@ -97,10 +101,9 @@ def _history(value) -> list[dict]:
     for index, item in enumerate(value):
         if not isinstance(item, dict) or item.get("role") not in {"user", "assistant"}:
             raise TloChatError(f"history[{index}] has an invalid role")
-        normalized.append({
-            "role": item["role"],
-            "content": _clean_text(item.get("content"), f"history[{index}].content", MAX_HISTORY_CHARS, required=True),
-        })
+        normalized.append({"role": item["role"], "content": _clean_text(item.get("content"), f"history[{index}].content", MAX_HISTORY_CHARS, required=True)})
+    if sum(len(item["content"]) for item in normalized) > MAX_HISTORY_TOTAL_CHARS:
+        raise TloChatError(f"history must contain at most {MAX_HISTORY_TOTAL_CHARS} characters")
     return normalized
 
 
@@ -115,6 +118,7 @@ def build_system_prompt(projection: dict) -> str:
     ]
     definition = str(agent.get("definition") or "").strip()
     sections.append(f"Agent definition:\n{definition}" if definition else f"Identity:\n{str(agent.get('identity') or '').strip()}")
+    sections.extend(agent_capability_registry.prompt_sections(projection.get("capabilityContext") or {}))
     rules = [] if definition else [str(item).strip() for item in agent.get("workingRules") or [] if str(item).strip()]
     if rules:
         sections.append("Working rules:\n" + "\n".join(f"- {item}" for item in rules))
@@ -233,6 +237,7 @@ def status_payload(scope_id="default") -> dict:
             "provider": "local-moe",
             "configuredModelId": configured_model,
             "activeModelId": active_model,
+            "nexusGuideRevision": projection["agent"].get("nexusGuideRevision") or None,
             "definition": {key: projection["agent"].get("definitionMetadata", {}).get(key)
                            for key in ("source", "revision")},
         },
@@ -301,6 +306,8 @@ def _upstream_error(response) -> TloChatError:
 def _stream_chat(handler, payload: dict) -> None:
     message, scope_id, request_id, history = _request_data(payload)
     projection = _projection(scope_id)
+    capability_context = agent_capability_registry.resolve(message)
+    projection["capabilityContext"] = capability_context
     lifecycle = local_moe_control.get_status()
     if not lifecycle.get("running"):
         state = "harness_starting" if lifecycle.get("state") == "starting" else "harness_stopped"
@@ -341,6 +348,8 @@ def _stream_chat(handler, payload: dict) -> None:
         handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
         handler.send_header("Cache-Control", "no-cache")
         handler.send_header("X-Accel-Buffering", "no")
+        handler.send_header("Access-Control-Expose-Headers", "X-EveOS-Capability-Context")
+        handler.send_header("X-EveOS-Capability-Context", json.dumps(agent_capability_registry.public_context(capability_context), separators=(",", ":")))
         handler.send_header("Connection", "close")
         handler.end_headers()
         handler.close_connection = True
@@ -396,8 +405,20 @@ def handle_get_request(handler, path, query) -> bool:
 
 
 def handle_post_request(handler, path) -> bool:
-    if path not in {f"{BASE_PATH}/chat/stream", f"{BASE_PATH}/chat/cancel"}:
+    backend_path = f"{BASE_PATH}{tlo_backend_transport_route.BACKEND_PATH_SUFFIX}"
+    if path not in {f"{BASE_PATH}/chat/stream", f"{BASE_PATH}/chat/cancel", backend_path}:
         return False
+    if path == backend_path:
+        try:
+            return tlo_backend_transport_route.handle(handler, read_body=_read_body, stream_chat=_stream_chat)
+        except TloChatError as exc:
+            send_json(handler, exc.status, _error_payload(exc)); return True
+        except Exception:
+            logger.exception("TLO backend chat failed")
+            send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                "ok": False, "state": "inference_failure", "error": "TLO backend chat failed."
+            })
+            return True
     if not _authorize_tlo_ui(handler):
         return True
     try:

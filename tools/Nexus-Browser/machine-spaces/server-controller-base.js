@@ -1,62 +1,23 @@
 'use strict';
 
-const { randomUUID } = require('node:crypto');
 const { createManagedTerminalBroker } = require('./managed-terminal-broker');
 const { createApprovalBroker, cleanCommand, commandDigest } = require('./approval-broker');
 const { createOutputSpool } = require('./output-spool');
 const { POLICY_ID, resolveRepoRoot, evaluateRepoSafeCommand, createRepoSafeGrant, publicGrant } = require('./repo-safe-grant');
 const { PROVIDER_ACTIONS, createMachineSpacesProviderControl } = require('./provider-control');
 const ledgerApi = require('./operation-ledger');
+const {
+  machineError,
+  cleanName,
+  id,
+  samePath,
+  machineState,
+  findSpace,
+  publicRequest,
+  ownerRequest
+} = require('./server-controller-model');
 
 const MAX_SPACES = 12, MAX_REQUESTS = 64;
-
-function machineError(code, message) { return Object.assign(new Error(message), { code }); }
-function cleanName(value, fallback, max = 80) {
-  return String(value || fallback).replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, max) || fallback;
-}
-function id(prefix) { return `${prefix}-${randomUUID()}`; }
-function samePath(a, b) { return String(a || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === String(b || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase(); }
-function machineState(room) {
-  if (!room.machineSpaces || typeof room.machineSpaces !== 'object') {
-    room.machineSpaces = { version: 1, spaces: [] };
-  }
-  room.machineSpaces.spaces = Array.isArray(room.machineSpaces.spaces) ? room.machineSpaces.spaces : [];
-  return room.machineSpaces;
-}
-function findSpace(room, reference = '') {
-  const spaces = machineState(room).spaces.filter((space) => space.archived !== true);
-  if (!reference) return spaces.length === 1 ? spaces[0] : null;
-  const wanted = String(reference).trim().toLowerCase();
-  return spaces.find((space) => space.id === reference)
-    || spaces.find((space) => String(space.name || '').trim().toLowerCase() === wanted) || null;
-}
-function publicRequest(request = {}) {
-  return {
-    requestId: request.requestId,
-    actorMemberId: request.actorMemberId || null,
-    actorName: request.actorName || 'Agent',
-    sourceMessageId: request.sourceMessageId || null,
-    terminalId: request.terminalId,
-    commandSummary: request.commandSummary || '',
-    commandDigest: request.commandDigest || '',
-    approvalId: request.approvalId || null,
-    grantId: request.grantId || null,
-    approvalMode: request.approvalMode || null,
-    approvedByMemberId: request.approvedByMemberId || null,
-    approvedByName: request.approvedByName || null,
-    risk: request.risk || null,
-    challenge: request.challenge || '',
-    state: request.state || 'approval-required',
-    outputId: request.outputId || null,
-    preview: request.preview || '',
-    bytes: Number.isSafeInteger(request.bytes) ? request.bytes : null,
-    exitCode: Number.isInteger(request.exitCode) ? request.exitCode : null,
-    reason: request.reason || null,
-    createdAt: request.createdAt || null,
-    finishedAt: request.finishedAt || null
-  };
-}
-function ownerRequest(request = {}) { return { ...publicRequest(request), command: String(request.command || '') }; }
 
 function createMachineSpacesController({
   safeSend,
@@ -137,7 +98,19 @@ function createMachineSpacesController({
           const target = broker.target(terminalId);
           return target ? { ...target, available: true } : { id: terminalId, targetId: terminalId, available: false };
         }),
-        requests: (space.requests || []).slice(-MAX_REQUESTS).map(ownerRequest)
+        requests: (space.requests || []).slice(-MAX_REQUESTS).map((request) => {
+          const item = ownerRequest(request);
+          const ledgerEntry = space.ledger
+            ? ledgerApi.entryFor(space.ledger, request.requestId)
+            : null;
+          if (ledgerEntry) {
+            item.lifecycle = ledgerApi.lifecycleProjection(
+              ledgerEntry,
+              new Date(now()).toISOString()
+            );
+          }
+          return item;
+        })
       }))
     };
   }
@@ -207,9 +180,13 @@ function createMachineSpacesController({
           capability: 'terminal.exec', operationDigest: record.commandDigest,
           commandSummary: record.commandSummary, createdAt: new Date(record.createdAt).toISOString()
         }, () => true);
-        ledgerApi.markRunning(space.ledger, record.requestId);
+        ledgerApi.markDispatched(
+          space.ledger,
+          record.requestId,
+          new Date(now()).toISOString()
+        );
         const request = (space.requests || []).find((entry) => entry.requestId === record.requestId);
-        if (request) { request.state = 'running'; delete request.command; delete request.challenge; }
+        if (request) { delete request.command; delete request.challenge; }
       });
     }
     send(notifyWs, { type: 'machine_command_started', requestId: record.requestId, targetId: record.targetId });
@@ -217,8 +194,24 @@ function createMachineSpacesController({
     let result;
     try {
       result = await broker.run({ targetId: record.targetId, requestId: record.requestId,
-        command: record.command, onStart: ({ pid, startedAt }) => send(notifyWs,
-          { type: 'machine_process_started', requestId: record.requestId, targetId: record.targetId, pid, startedAt }) });
+        command: record.command, onStart: ({ pid, startedAt }) => {
+          if (context.kind === 'dex') {
+            mutateRoom(context.roomId, (room) => {
+              const space = resolveRoomSpace(room, context.spaceId);
+              ledgerApi.markExecutionStarted(
+                space.ledger,
+                record.requestId,
+                startedAt
+              );
+              const request = (space.requests || []).find(
+                (entry) => entry.requestId === record.requestId
+              );
+              if (request) request.state = 'running';
+            });
+          }
+          send(notifyWs,
+            { type: 'machine_process_started', requestId: record.requestId, targetId: record.targetId, pid, startedAt });
+        } });
     } catch (error) {
       result = { requestId: record.requestId, targetId: record.targetId, stdout: '', stderr: error.message,
         bytes: Buffer.byteLength(error.message), exitCode: null, state: 'failed', reason: error.code || 'spawn-failed',
@@ -232,6 +225,17 @@ function createMachineSpacesController({
     if (context.kind === 'dex') {
       mutateRoom(context.roomId, (room) => {
         const space = resolveRoomSpace(room, context.spaceId);
+        const ledgerEntry = ledgerApi.entryFor(
+          space.ledger,
+          record.requestId
+        );
+        if (ledgerEntry?.executionStartedAt && !ledgerEntry.executionCompletedAt) {
+          ledgerApi.markExecutionCompleted(
+            space.ledger,
+            record.requestId,
+            result.finishedAt
+          );
+        }
         ledgerApi.settle(space.ledger, { requestId: record.requestId, state: result.state,
           outputId: output.outputId, preview: complete.preview, bytes: output.bytes,
           exitCode: result.exitCode, finishedAt: result.finishedAt });

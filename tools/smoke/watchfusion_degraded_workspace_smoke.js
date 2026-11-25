@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -21,6 +22,36 @@ const systemRoutes = read('tools/WatchFusion/src/server/system-routes.js');
 const shellCss = read('css/modules/watchfusion.css');
 const css = read('css/modules/watchfusion-resilience.css');
 const registry = JSON.parse(read('config/eveos-ports.json'));
+
+function checkWorkspaceOrigin() {
+    const port = registry.ports.WATCHFUSION_PORT.port;
+    const localUrl = `http://127.0.0.1:${port}/`;
+    const hostUrl = `http://127-0-0-1.sslip.io:${port}/`;
+    const lanUrl = `http://192-168-50-7.sslip.io:${port}/`;
+    const publicUrl = 'https://example.trycloudflare.com/';
+    const window = { EveOSPortRegistry: { get: () => port }, addEventListener() {}, setInterval() {} };
+    vm.runInNewContext(sensor, { window, URL, location: { protocol: 'file:' } });
+    const runtime = window.EveWatchFusionRuntimeSensor;
+    const origin = (url) => new URL(url).origin;
+    for (const [status, expected] of [
+        [{ exposureMode: 'local', localUrl, hostUrl, url: hostUrl }, hostUrl],
+        [{ exposureMode: 'lan', localUrl, publicUrl: lanUrl, url: lanUrl }, lanUrl],
+        [{ exposureMode: 'cloudflare', localUrl, hostUrl: lanUrl, publicUrl }, lanUrl],
+        [{ exposureMode: 'lan', localUrl, publicUrl: lanUrl, directHostUrl: localUrl }, localUrl],
+        [{ exposureMode: 'local', localUrl, hostUrl: 'invalid' }, localUrl]
+    ]) {
+        runtime.configureExposure(status);
+        const embedded = runtime.workspaceUrl(status);
+        const detached = runtime.workspaceUrl(status, { detached: true });
+        check(embedded?.origin === origin(expected) && detached?.origin === origin(expected),
+            `WF-WORKSPACE-ORIGIN-${status.exposureMode}: expected ${origin(expected)}, got ${embedded?.origin} and ${detached?.origin}`);
+        check(runtime.isCandidateOrigin(embedded?.origin),
+            `WF-WORKSPACE-ORIGIN-${status.exposureMode}: selected origin must be trusted by the presence bridge`);
+        check(embedded?.searchParams.get('eveos') === '1' && detached?.searchParams.get('eveosDetached') === '1',
+            'WF-WORKSPACE-ORIGIN: renderer must preserve the embedded and detached role flags');
+    }
+}
+checkWorkspaceOrigin();
 
 check(manifest.includes('watchfusion/watchfusion.runtime-sensing.js'), 'runtime sensing layer is not loaded before WatchFusion');
 check(manifest.includes('watchfusion/watchfusion.resilience.js'), 'resilience layer is not loaded after WatchFusion');

@@ -1,0 +1,87 @@
+/* One control state: these are frontend views of Backend selectors and PlayerQueue. */
+.piano-pxp-controls { margin: 17px 0 6px; padding: 17px; border: 1px solid rgba(84,177,189,.24); border-radius: 14px; background: linear-gradient(135deg,rgba(15,42,49,.9),rgba(10,29,35,.88)); }
+.piano-pxp-heading { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:baseline; margin-bottom:12px; }
+.piano-pxp-controls:not([open]) { padding:9px 13px; }
+.piano-pxp-controls:not([open]) .piano-pxp-heading { min-height:22px; margin-bottom:0; align-items:center; }
+.piano-pxp-heading strong { font-size:15px; color:#e2f6f7; }
+.piano-pxp-heading span,.piano-pxp-controls small,.piano-pxp-queue-now small { font-size:11px; color:#8eaeb5; }
+.piano-pxp-control-grid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+.piano-pxp-control-grid label { min-width:0; display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:650; color:#c8e9ed; }
+.piano-pxp-control-grid select { background:#0a2228; color:#e0f3f5; border:1px solid #345b62; min-height:37px; padding:6px 10px; border-radius:9px; width:100%; min-width:0; }
+.piano-pxp-control-grid select:disabled { color:#73858b; background:#162329; border-color:#374347; opacity:.57; cursor:not-allowed; }
+.piano-pxp-control-grid label.piano-pxp-toggle { display:grid; grid-template-columns:max-content max-content; justify-content:start; align-content:start; align-items:center; column-gap:8px; }
+.piano-pxp-toggle input { grid-column:2; grid-row:1; width:19px; height:19px; accent-color:#67d7df; margin:0; }
+.piano-pxp-toggle small { grid-column:1 / -1; }
+.piano-pxp-control-grid small { font-weight:400; line-height:1.3; }
+.piano-pxp-mini { margin-top:11px; display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.piano-pxp-mini [data-pxp-notice] { font-size:11px; color:#95bcc3; }
+.piano-pxp-filters { border-bottom:1px solid rgba(72,139,149,.2); padding:0 0 13px; margin:0 0 14px; }
+.piano-pxp-pills { display:flex; flex-wrap:wrap; gap:6px; margin:1px 0 10px; }
+.audioflix-piano-frontend .piano-pxp-pills button { min-height:30px; padding:5px 10px; font-size:11px; background:#0d2228; }
+.audioflix-piano-frontend .piano-pxp-pills button.active { color:#081c21; background:#79dce9; border-color:#79dce9; font-weight:750; }
+.piano-pxp-advanced { border:1px solid #24424a; background:rgba(8,26,32,.7); border-radius:10px; padding:8px 10px; }
+.piano-pxp-advanced summary { cursor:pointer; color:#b3d7de; font-size:12px; font-weight:650; }
+.piano-pxp-filters-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; padding:11px 0 3px; }
+.piano-pxp-filters-grid input,.piano-pxp-filters-grid select,.piano-pxp-queue-toolbar select { min-width:0; width:100%; min-height:36px; border:1px solid #345b62; border-radius:8px; background:#0b1f25; color:#cce8ee; padding:6px 8px; }
+.piano-pxp-queue { border:1px solid #31555b; border-radius:12px; margin:0 0 15px; padding:11px 14px; background:#0b1d23; }
+.piano-pxp-queue > summary { display:flex; justify-content:space-between; gap:10px; align-items:center; cursor:pointer; color:#e4f5f6; list-style-position:inside; }
+.piano-pxp-queue > summary strong { font-size:14px; }
+.piano-pxp-queue > summary span { font-size:11px; color:#9ac4cc; }
+.piano-pxp-queue-now { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:15px 0 11px; }
+.piano-pxp-queue-now > div { display:flex; flex-direction:column; gap:4px; min-width:0; background:#102a31; border-radius:9px; padding:10px; }
+.piano-pxp-queue-now strong { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#d0edf0; }
+.piano-pxp-queue-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:0 0 12px; }
+.piano-pxp-queue-toolbar label { display:flex; align-items:center; gap:7px; font-size:12px; color:#add0d7; }
+.piano-pxp-queue-toolbar select { width:auto; min-width:110px; }
+.audioflix-piano-frontend .piano-pxp-queue-toolbar button { min-height:32px; padding:5px 10px; font-size:11px; }
+.piano-pxp-queue-list { display:grid; gap:5px; max-height:250px; overflow-y:auto; overflow-x:hidden; min-width:0; }
+.piano-pxp-queue-row { display:flex; align-items:center; gap:7px; min-width:0; width:100%; max-width:100%; box-sizing:border-box; overflow:hidden; background:rgba(21,51,58,.66); padding:5px 7px; border-radius:8px; }
+.piano-pxp-queue-row[draggable="true"] { cursor:grab; }
+.piano-pxp-queue-row.dragging { opacity:.45; }
+.piano-pxp-queue-row[data-drop-after="0"] { box-shadow:inset 0 2px #65dce8; }
+.piano-pxp-queue-row[data-drop-after="1"] { box-shadow:inset 0 -2px #65dce8; }
+.piano-pxp-queue-row[data-queue-status="current"] { background:rgba(25,95,106,.66); outline:1px solid rgba(101,220,232,.42); }
+.piano-pxp-queue-row[data-queue-status="next"] { outline:1px solid rgba(112,221,159,.32); }
+.piano-pxp-queue-row > .piano-pxp-queue-title { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.piano-pxp-queue-row > button { flex:0 0 auto; }
+.piano-pxp-queue-row > span.is-current { color:#80e6bd; font-weight:750; }
+.audioflix-piano-frontend .piano-pxp-queue-row button { min-height:27px; padding:3px 8px; font-size:11px; }
+.piano-pxp-song-details { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.piano-pxp-chip { display:inline-flex; font-size:10px; max-width:180px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; border:1px solid #264b53; border-radius:5px; background:#122f37; color:#93bfc6; padding:2px 6px; }
+.piano-pxp-chip.is-favorite { border-color:#927348; color:#f3d29a; }
+.piano-pxp-chip.is-queued { border-color:#39765c; color:#91e6b9; }
+.piano-frontend-song { grid-template-columns:40px minmax(0,1fr) auto auto; }
+.piano-pxp-queue-actions { display:inline-flex; align-items:center; justify-content:flex-end; }
+.audioflix-piano-frontend .piano-pxp-queue-actions button { min-height:36px; padding:7px 10px; font-size:11px; white-space:nowrap; border-radius:0; }
+.audioflix-piano-frontend .piano-pxp-queue-actions button:first-child { border-radius:9px 0 0 9px; }
+.audioflix-piano-frontend .piano-pxp-queue-actions button:last-child { border-radius:0 9px 9px 0; margin-left:-1px; }
+.audioflix-piano-frontend .piano-pxp-remove:not(:disabled) { color:#ffd2d5; border-color:rgba(221,112,121,.38); background:#2d1a1e; }
+@media (max-width:950px) { .piano-pxp-control-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .piano-pxp-filters-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:650px) { .piano-pxp-filters-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .piano-pxp-queue-now { grid-template-columns:1fr; } .piano-frontend-song { grid-template-columns:32px minmax(0,1fr) auto; } .piano-frontend-song .piano-pxp-queue-actions { grid-column:2 / -1; justify-self:end; } .piano-pxp-controls { padding:12px; } }
+@media (max-width:380px) { .piano-pxp-control-grid,.piano-pxp-filters-grid { grid-template-columns:minmax(0,1fr); } }
+
+/* Frontend keeps the technical launcher out of the listening surface. */
+.audioflix-piano[data-piano-view="frontend"] .piano-frontend-header { padding-top:0; }
+.audioflix-piano[data-piano-view="frontend"] .audioflix-piano-meta { justify-content:flex-end; }
+.audioflix-piano[data-piano-view="frontend"] .audioflix-piano-message:empty { display:none; }
+.piano-pxp-controls > summary { cursor:pointer; list-style: none; margin:0; align-items:center; }
+.piano-pxp-controls > summary::-webkit-details-marker { display:none; }
+.piano-pxp-controls > summary::after { content:'▸'; color:#8be0e9; margin-left:8px; }
+.piano-pxp-controls[open] > summary::after { content:'▾'; }
+.piano-pxp-controls[open] > summary { margin-bottom:12px; }
+.piano-pxp-events { margin:12px 0 6px; padding:11px 16px; border:1px solid #29545d; border-radius:12px; background:#0b2229; }
+.piano-pxp-events-head,.piano-pxp-events-data { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:7px; }
+.piano-pxp-events-head { cursor:pointer; list-style:none; }
+.piano-pxp-events-head::-webkit-details-marker { display:none; }
+.piano-pxp-events-head::after { content:'▸'; color:#8be0e9; }
+.piano-pxp-events[open] .piano-pxp-events-head::after { content:'▾'; }
+.piano-pxp-events-data { margin-top:10px; }
+.piano-pxp-events-head strong { font-size:13px; color:#e2f6f7; }
+.piano-pxp-events-head span,.piano-pxp-events-data { color:#a0bec5; font-size:12px; }
+.piano-pxp-events-data b { color:#e0f8fc; overflow-wrap:anywhere; }
+.piano-pxp-workspace{margin:12px 0 8px;padding:10px 13px;border:1px solid #31555b;border-radius:13px;background:rgba(8,27,33,.82)}
+.piano-pxp-workspace>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;color:#e4f5f6}.piano-pxp-workspace>summary strong{font-size:14px}.piano-pxp-workspace>summary span{font-size:11px;color:#8faeb5}.piano-pxp-workspace>[data-pxp-workspace-body]{padding-top:9px}.piano-pxp-workspace .piano-pxp-controls{margin-top:0}
+.piano-pxp-event-nav{display:grid;grid-template-columns:repeat(4,auto) minmax(108px,1fr) repeat(5,auto);gap:5px;align-items:end;margin:10px 0}.piano-pxp-event-nav label{display:grid;grid-template-columns:auto minmax(60px,1fr);gap:6px;align-items:center;font-size:11px;color:#a0bec5}.piano-pxp-event-nav input{min-width:0;width:100%;min-height:30px;border:1px solid #345b62;border-radius:7px;background:#091b20;color:#dff5f7;padding:4px 7px}.audioflix-piano-frontend .piano-pxp-event-nav button{min-height:30px;padding:4px 8px;font-size:11px}
+.piano-pxp-event-rail { height:9px; border-radius:999px; background:#142d35; border:1px solid #34616a; overflow:hidden; }
+.piano-pxp-event-rail > span { height:100%; width:0%; display:block; background:linear-gradient(90deg,#2baec4,#88e1d0); transition:width .2s linear; }
+@media(max-width:760px){.piano-pxp-workspace>summary{align-items:flex-start;flex-direction:column}.piano-pxp-event-nav{grid-template-columns:repeat(5,minmax(0,1fr))}.piano-pxp-event-nav label{grid-column:1/4}.piano-pxp-event-nav button{min-width:0}}

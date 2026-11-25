@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -126,19 +127,25 @@ export async function runSourceTabSmokes() {
     assert.match(bootstrap, /watchFusionLinkedTab\?\.active\?\.\(\)[\s\S]{0,100}watchFusionLinkedTab\.stop\(\{quiet:true\}\)/);
     const mediaControls = readClient('media-controls.js');
     assert.match(mediaControls, /loadSelectedMedia\(\)[\s\S]{0,260}watchFusionLinkedTab\.stop\(\{quiet:true\}\)/);
-    assert.match(worker, /message\.type==='start-pairing'/);
-    assert.equal((worker.match(/startCurrentTab\(/g)||[]).length,2,'Only the public method and explicit start-pairing route may start a tab link.');
+    assert.match(worker, /message\.type==='start-pairing'&&internal&&!sender\.tab\)return globalThis\.WatchFusionMediaLink\.startCurrentTab\(/);
+    assert.match(worker, /startCurrentTab:\(\.\.\.args\)=>withSourceOperation\(\(\)=>startCurrentTab\(\.\.\.args\)\)/);
+    assert.equal((worker.match(/(?<!\.)\bstartCurrentTab\(/g)||[]).length,2,'New links must start through the serialized public method.');
   })();
 
   await record('ST-13:linked-room-mirror-is-projected-and-bounded', async () => {
     assert.match(linkedTab, /mirrorPlan\?\.\(metadata,lastMirrorAnchor,\{force\}\)/);
-    assert.match(linkedTab, /if\(!plan\?\.publish\)return false/);
+    assert.match(linkedTab, /if \(!plan\?\.publish\) \{\s+if \(roomId\) window\.WatchFusionMirrorConvergenceGate\?\.observeSteady\?\.\(plan,metadata,loadedPageUrl\);\s+return false;/);
     assert.match(linkedTab, /mirrorInFlight=true/);
     assert.match(linkedTab, /queuedMirror=\{metadata:\{\.\.\.metadata\},force:/);
-    assert.match(linkedTab, /if\(ok&&link===activeLink\)lastMirrorAnchor=plan\.anchor/);
+    assert.match(linkedTab, /if\(link!==activeLink\|\|loadedPageUrl!==activePage\|\|!receipt.status\)return false;[\s\S]*?if\(ok\)\{lastMirrorAnchor=plan\.anchor/);
     assert.doesNotMatch(linkedTab, /MIRROR_INTERVAL_MS/);
     assert.match(linkedPlayback, /function mediaPlan/);
     assert.match(linkedPlayback, /function mirrorPlan/);
+    assert.match(linkedPlayback, /function transportTiming/);
+    assert.match(linkedTab, /diagnostics:\(\)=>\(\{transport:lastTransportTiming[,}]/); // v13.10.3 adds peer-readiness fields
+    assert.match(worker, /publisherReceivedAt:Date\.now\(\)/);
+    assert.match(worker, /publisherSentAt:now/);
+    assert.match(worker, /serverSampledAt:sample.sampledAt \+ offsets/);
   })();
 
   await record('ST-14:linked-direct-media-does-not-permanently-mask-host-controls', async () => {
@@ -149,7 +156,7 @@ export async function runSourceTabSmokes() {
 
   await record('ST-15:linked-youtube-poll-detects-host-seeks-without-buffering-event', async () => {
     assert.match(commands, /positionJumped\?\.\(position,linkedYoutubePositionSample,now\)/);
-    assert.match(commands, /if\(jumped&&isHost\(\)\)linked\.control\('seek',position\)/);
+    assert.match(commands, /if\(forwardSeek&&jumped&&\(!roomId\|\|isHost\(\)\)&&!window\.WatchFusionSoloLinkSync\?\.isApplying\?\.\(\)\)linked\.control\('seek',position\)/); // v13.10.7: solo seeks route too
   })();
 
   await record('ST-16:linked-controls-stay-compact-over-the-normal-player', async () => {
@@ -233,6 +240,67 @@ export async function runSourceTabSmokes() {
     assert.equal(added + removed + sends, 0, 'A probe with a dead runtime must not touch chrome.runtime.');
     assert.equal(intervals, 0, 'A probe with a dead runtime must not start the sampler.');
     assert.notEqual(context.__watchFusionMediaProbe, true, 'The marker must be released so a fresh context can inject.');
+  })();
+
+  await record('ST-19:explicit-source-silence-preserves-playback-and-reported-volume', async () => {
+    const { runInNewContext } = await import('node:vm');
+    const createMedia = (muted, volume) => ({
+      tagName: 'VIDEO', muted, volume, readyState: 4, paused: false, currentTime: 12,
+      duration: 100, playbackRate: 1, isConnected: true,
+      addEventListener() {}, removeEventListener() {}
+    });
+    const original = createMedia(false, 0.42);
+    const preview = createMedia(true, 0.25);
+    let media = [original, preview];
+    let receive, latest, sampler;
+    const events = new Map();
+    const context = {
+      crypto: { randomUUID: () => 'source-silence' },
+      navigator: {},
+      location: { href:'https://example.test/media' },
+      document: {
+        querySelectorAll: () => media, querySelector: () => null,
+        addEventListener: (event, listener) => events.set(event, listener),
+        removeEventListener: (event) => events.delete(event)
+      },
+      chrome: { runtime: {
+        id: 'extension',
+        sendMessage: (message) => { if (message.type === 'sample') latest = message.metadata; },
+        onMessage: { addListener: (fn) => { receive = fn; }, removeListener() {} }
+      } },
+      setInterval: (fn) => { sampler = fn; }, clearInterval() {},
+      addEventListener() {}, removeEventListener() {}, postMessage() {}
+    };
+    context.window = context; context.top = context;
+    runInNewContext(probe, context);
+
+    assert.equal(original.muted, false, 'Normal attachment is passive');
+    receive({ type:'source-player-silence', enabled:true }, {}, () => {});
+    assert.equal(original.muted, true);
+    assert.equal(latest.volume, 0.42);
+    assert.equal(latest.currentTime, 12);
+    assert.equal(latest.paused, false);
+
+    receive({ type:'source-control', action:'volume', value:0.7 });
+    assert.equal(original.muted, true, 'WatchFusion volume changes cannot reopen the captured output');
+    assert.equal(latest.volume, 0.7);
+    original.muted = false;
+    events.get('volumechange')({ target:original });
+    assert.equal(original.muted, true);
+
+    const nextTrack = createMedia(false, 0.7);
+    media = [nextTrack, preview];
+    original.isConnected = false;
+    events.get('play')({ target:nextTrack });
+    assert.equal(nextTrack.muted, true);
+    sampler();
+    assert.equal(latest.volume, 0.7);
+    assert.equal(original.muted, false, 'Detached media restores its previous mute state');
+
+    receive({ type:'probe-stop' });
+    assert.equal(nextTrack.muted, false);
+    assert.equal(preview.muted, true);
+    assert.equal(context.__watchFusionMediaProbe, undefined);
   })();
 
   return results;

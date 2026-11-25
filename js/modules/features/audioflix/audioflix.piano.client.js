@@ -15,6 +15,8 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
     };
     let launchPollTimer = 0;
     let launchPollDeadline = 0;
+    let unavailableSince = 0;
+    const TRANSIENT_OUTAGE_GRACE_MS = 12_000;
 
     function serviceUrl() {
         const port = Number(window.config?.bridges?.pianoPlayerPort) || 8771;
@@ -73,6 +75,8 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
     async function findController() {
         for (const baseUrl of controllerBases()) {
             try {
+                const identity = await json(`${baseUrl}/api/status`, null, 1400);
+                if (identity?.ok !== true || identity?.service !== 'eveos-control-plane') continue;
                 const payload = await json(`${baseUrl}/api/piano-player/status`, null, 2600);
                 return { baseUrl, payload };
             } catch (_) {}
@@ -104,8 +108,10 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
     }
 
     async function refresh() {
+        const wasRunning = state.running === true;
         const [managed, direct, exposure] = await Promise.all([findController(), directStatus(), sharedExposure()]);
         if (managed) {
+            unavailableSince = 0;
             apply(managed.payload, managed.baseUrl);
             if (direct) {
                 state.running = state.directAvailable = true;
@@ -120,6 +126,7 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
                     : `Piano Auto Player is online through ${state.exposureMode}.`;
             }
         } else if (exposure) {
+            unavailableSince = 0;
             Object.assign(state, {
                 baseUrl: '', controllerAvailable: false, directAvailable: false,
                 installed: true, running: true, phase: 'shared',
@@ -128,6 +135,7 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
                 message: `Piano Auto Player is selectively shared through ${exposure.mode || 'Cloudflare'}.`
             });
         } else if (direct) {
+            unavailableSince = 0;
             Object.assign(state, {
                 baseUrl: '', controllerAvailable: false, directAvailable: true,
                 installed: true, running: true, phase: 'running', url: serviceUrl(),
@@ -135,7 +143,14 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
                 appVersion: String(direct.appVersion),
                 message: 'Piano Auto Player is online through a standalone localhost launcher.'
             });
+        } else if (wasRunning && (!unavailableSince || Date.now() - unavailableSince < TRANSIENT_OUTAGE_GRACE_MS)) {
+            unavailableSince ||= Date.now();
+            Object.assign(state, {
+                controllerAvailable: false, directAvailable: false, running: true, phase: 'reconnecting',
+                message: 'Piano connection was briefly interrupted. Keeping the workspace open while reconnecting.'
+            });
         } else {
+            unavailableSince = 0;
             Object.assign(state, {
                 baseUrl: '', controllerAvailable: false, directAvailable: false,
                 running: false, phase: 'unavailable', url: serviceUrl(), localUrl: serviceUrl(),

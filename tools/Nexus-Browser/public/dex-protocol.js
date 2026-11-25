@@ -13,7 +13,8 @@
     'help', 'onboard', 'checkpoint', 'read_checkpoint', 'rooms', 'targets', 'create_room', 'use_room', 'status',
     'rename_room', 'configure_room', 'rename_self', 'set_self_relay', 'rename_agent', 'set_agent_relay', 'remove_agent',
     'stop_relay', 'continue_relay', 'room_budget', 'set_room_budget', 'room_log', 'tool_result_status', 'clear_chat', 'delete_room', 'add_agent', 'spawn_agent', 'despawn_agent', 'send', 'handoff_room', 'reload_extension', 'watch_done', 'unwatch_done',
-    'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output'
+    'arm_post_idle', 'post_idle_status', 'cancel_post_idle', 'report_post_idle', 'workspace_ensure', 'terminal_targets', 'terminal_exec', 'terminal_status', 'terminal_output',
+    'job_prepare', 'playwright_prepare', 'governor_prepare', 'job_status', 'job_list', 'nav_status', 'nav_search'
   ]);
   const NESTED_RELAY_MARKER = /\[{1,2}DEX ROOM RELAY\]/i;
   const OLD_CONTEXT_TRUNCATION = '[truncated by Dex context window]';
@@ -168,6 +169,7 @@
     if (parsed.done) return { action: 'stop', kind: 'done', reason: `${name} marked the room complete` };
     if (parsed.note) return { action: 'stop', kind: 'note', reason: `${name} posted a note` };
     if (repeated) return { action: 'stop', kind: 'loop', reason: 'Loop guard stopped a repeated reply' };
+    if (relay.singleAgentIdle) return { action: 'stop', kind: 'single-agent', reason: `${name} completed one readiness-only turn · awaiting new input or an authenticated tool result` };
     if (!relay.active) return { action: 'stop', kind: 'stopped', reason: relay.lastStopReason || 'Relay stopped' };
     if (relay.remaining <= 0) return { action: 'stop', kind: 'budget', reason: 'Relay budget complete' };
     return { action: 'continue', kind: 'reply', reason: null };
@@ -276,7 +278,7 @@
     return earlier.filter((_entry, index) => anchors.has(index));
   }
 
-  function buildRelayPrompt({ room, recipient, member, sourceMessage, requestId, providerHealth = '', inboxMessageIds = [] }) {
+  function buildRelayPrompt({ room, recipient, member, sourceMessage, requestId, providerHealth = '', capabilityPrompt = '', inboxMessageIds = [] }) {
     const addressed = recipient || member;
     const participants = (room?.members || []).map((entry) => `- ${memberSummary(entry)}`).join('\n') || '- none';
     const inboxIds = new Set(inboxMessageIds);
@@ -306,7 +308,7 @@
         `If more agent exchanges are genuinely needed, choose N (1–${headroom}) and append [[DEX:BUDGET:+N]]`,
         'before RETURN/other trailing markers. Example: [[DEX:BUDGET:+4]] adds four turns to this run.',
         'You decide; no automatic extension or extra nudge turn is generated. Do not append DONE, USER,',
-        'NOTE or CMD if you intend the budget extension to continue this relay.',
+        'or NOTE if you intend continuation. If a CMD result is needed, put BUDGET immediately before CMD.',
         'If finished, reply normally with DONE. If no extension is needed, omit the budget flag.',
         'This extension changes only the current run, not the room default; change the default while idle.'
       ].join(' ') : [
@@ -336,6 +338,7 @@
       'Provider availability:',
       cleanText(providerHealth) || '- no blocking provider signals reported',
       '',
+      ...(capabilityPrompt ? [cleanText(capabilityPrompt), ''] : []),
       'Rules:',
       '- Reply only as the Recipient. Do not impersonate another participant.',
       '- Room, routing, recipient, and speaker identity metadata are authoritative.',
@@ -354,7 +357,7 @@
       '- Recent room context defaults to one latest prior message PER room agent, excluding the current source. Fresh authorized incoming messages queued during another turn appear separately in FIFO order. Older room history remains durable.',
        '- Current message is the authoritative unabridged source for this relay turn; earlier context is projected, while NEW INCOMING updates remain independently authoritative.',
       '- For THIS outgoing reply only, put [[DEX:CONTEXT:12]] BEFORE RETURN/DONE to attach up to 12 prior room messages to the next recipient; valid range 1–40. Read your own backlog without a new room message: [[DEX:CMD {"action":"room_log","limit":10}]] (a CMD pauses relay).',
-      '- To extend a still-running relay before it runs out, put [[DEX:BUDGET:+4]] BEFORE RETURN/DONE to add four more unscheduled turns (up to 500 allocated per run). To inspect/change the idle room budget, use [[DEX:CMD {"action":"room_budget"}]] or [[DEX:CMD {"action":"set_room_budget","turns":12,"resume":true}]]; CMD pauses the current relay.',
+      '- To extend a still-running relay before it runs out, put [[DEX:BUDGET:+4]] BEFORE RETURN/DONE to add four more unscheduled turns (up to 500 allocated per run). Before a trailing CMD, BUDGET preserves authorized turns so the exact requesting agent can process the durable result. To inspect/change the idle room budget, use [[DEX:CMD {"action":"room_budget"}]] or [[DEX:CMD {"action":"set_room_budget","turns":12,"resume":true}]]; CMD pauses the current relay.',
       '- Do not rewrite Room/Recipient routing in prose.',
       '- If you need Dex room/worker controls, end with [[DEX:CMD {"action":"onboard"}]] to receive the current self-service command set. A trailing provider-control command pauses this relay before the control action runs.',
       '- If this exact chat is also bound to another Dex room, an intentional transfer may end with [[DEX:CMD {"action":"handoff_room","room":"<authorized room id or exact name>","text":"<message>","turns":8}]]. Dex stops this room before starting the authorized target room.',

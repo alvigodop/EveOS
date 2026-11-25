@@ -70,7 +70,9 @@ test('UI socket sends hello and permits dispatch only while connected', () => {
   assert.equal(client.send({ type: 'request_tabs' }), false);
   socket.emit('open');
   assert.equal(phases.at(-1).phase, 'connected');
-  assert.deepEqual(JSON.parse(socket.sent[0]), { type: 'hello', role: 'ui' });
+  const hello = JSON.parse(socket.sent[0]);
+  assert.deepEqual(hello, { type: 'hello', role: 'ui', uiHolderId: socketApi.uiHolderId });
+  assert.match(hello.uiHolderId, /^nexus-viewer-[A-Za-z0-9-]{8,160}$/);
   assert.equal(client.send({ type: 'request_tabs' }), true);
   assert.deepEqual(JSON.parse(socket.sent[1]), { type: 'request_tabs' });
 });
@@ -154,6 +156,32 @@ test('UI socket stop does not schedule a reconnect from its own close event', ()
   client.stop();
   assert.equal(socket.readyState, FakeWebSocket.CLOSED);
   assert.equal(scheduled.filter((entry) => !entry.cleared && entry.delay <= 2000).length, 0);
+});
+
+test('bounded viewer standby closes now and reconnects only when its lease expires', () => {
+  const realNow = Date.now;
+  Date.now = () => 1000;
+  try {
+    const { client, phases, scheduled } = harness();
+    client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.emit('open');
+    assert.equal(client.suspendUntil(31000), true);
+    assert.equal(socket.readyState, FakeWebSocket.CLOSED);
+    assert.equal(client.snapshot().phase, 'suspended');
+    assert.equal(client.snapshot().suspendedUntil, 31000);
+    assert.equal(client.send({ type: 'send_prompt' }), false);
+    assert.equal(phases.at(-1).phase, 'suspended');
+    const resume = scheduled.find((entry) => entry.delay === 30000);
+    assert.ok(resume);
+    resume.fn();
+    assert.equal(FakeWebSocket.instances.length, 2);
+    FakeWebSocket.instances[1].emit('open');
+    assert.equal(client.snapshot().phase, 'connected');
+    assert.equal(client.snapshot().suspendedUntil, null);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('UI socket parses bridge events and quarantines malformed payloads', () => {

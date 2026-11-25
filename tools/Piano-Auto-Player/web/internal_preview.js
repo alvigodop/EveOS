@@ -1,15 +1,38 @@
 import { LocalPianoOutput } from "./piano.js";
+import { ServerOwnedPreview } from "./internal_preview_native.js";
+
+// Browser window minimization may suspend every main-thread callback after a
+// short grace period, including MessagePort deliveries from an AudioWorklet.
+// Keep a finite two-minute acceptance window plus recovery headroom scheduled
+// directly on the AudioContext clock before that suspension can happen.
+const STABLE_AUDIO_LOOKAHEAD_MS = 180000;
+const LATE_AUDIO_SKIP_MS = 120;
+
+const PIANO_CLOCK_WORKLET = String.raw`class PianoPreviewClock extends AudioWorkletProcessor {
+  constructor() { super(); this.active = false; this.next = 0;
+    this.port.onmessage = event => { this.active = event.data?.active === true; }; }
+  process() { if (this.active && currentFrame >= this.next) {
+    this.next = currentFrame + Math.max(128, Math.round(sampleRate / 4));
+    this.port.postMessage({ tick: true }); }
+    return true; }
+}
+registerProcessor('piano-preview-clock', PianoPreviewClock);`;
 
 export class InternalPreviewPlayer {
-  constructor(pianoContainer) {
-    this.output = new LocalPianoOutput(pianoContainer);
+  constructor(pianoContainer, output = null) {
+    this.output = output || new LocalPianoOutput(pianoContainer);
+    this.native = new ServerOwnedPreview(this);
     this.releaseTimers = new Map();
     this.spanTimers = new Set();
     this.timer = 0;
+    this._clockNode = null; this._clockLoading = null;
     this.rows = [];
     this.total = 0;
     this.durationMs = 0;
     this.cursor = 0;
+    this.audioCursor = 0;
+    this.audioBufferedUntilMs = 0;
+    this.audioGeneration = 0;
     this.timelineBaseMs = 0;
     this.clockStartedAt = 0;
     this.pausedTimelineMs = 0;
@@ -19,14 +42,46 @@ export class InternalPreviewPlayer {
     this.currentIndex = 0;
     this.currentToken = "";
     this.resumeIndex = 0;
+    this._backgroundSchedule = () => {
+      if (this.state === "countdown") this._beginPlaying();
+      this._scheduleAudio(STABLE_AUDIO_LOOKAHEAD_MS);
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this._backgroundSchedule();
+    });
   }
 
-  unlock() { this.output.unlock(); }
-  setSound(soundId) { this.output.setSound(soundId); }
-  prepareSound() { return this.output.prepareSound(); }
+  // AudioWorklet render callbacks, rather than background-throttled setTimeout,
+  // maintain the WebAudio lookahead while the main browser window is minimized.
+  // This schedules notes only; the existing timeline still owns the UI and state.
+  _setAudioClock(active) {
+    if (this._clockNode) { this._clockNode.port.postMessage({ active }); return; }
+    if (!active || this._clockLoading) return;
+    const ctx = this.output?.sound?.ensure?.();
+    if (!ctx?.audioWorklet?.addModule || typeof AudioWorkletNode !== 'function') return;
+    this._clockLoading = ctx.audioWorklet.addModule(
+      `data:application/javascript;charset=utf-8,${encodeURIComponent(PIANO_CLOCK_WORKLET)}`)
+      .then(() => {
+        const node = new AudioWorkletNode(ctx, 'piano-preview-clock', {
+          numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
+        const silent = ctx.createGain(); silent.gain.value = 0;
+        node.connect(silent).connect(ctx.destination);
+        node.port.onmessage = () => {
+          if (this.state === 'playing') this._scheduleAudio(this._lookaheadMs());
+        };
+        this._clockNode = node;
+        node.port.postMessage({ active: this.state === 'playing' });
+      }).catch(() => { /* unsupported worklets keep the existing timer fallback */ })
+      .finally(() => { this._clockLoading = null; });
+  }
+
+  unlock() { return this.output.unlock(); }
+  setSound(soundId) { if (this.native.active) this.native.stop(); this.output.setSound(soundId); this._rescheduleAudio(); }
+  async prepareSound() { const ready = await this.output.prepareSound(); this._rescheduleAudio(); return ready; }
   soundLabel() { return this.output.soundLabel(); }
 
   status() {
+    if (this.native.active || (this.native.receipt && this.native.control?.checked)) return this.native.snapshot();
     return {
       status: this.state,
       message: this.message,
@@ -34,11 +89,18 @@ export class InternalPreviewPlayer {
       total_events: this.total,
       current_token: this.currentToken,
       resume_index: this.resumeIndex,
+      audio_buffered_until_ms: Math.round(this.audioBufferedUntilMs),
+      audio_lookahead_ms: STABLE_AUDIO_LOOKAHEAD_MS,
       internal_preview: true,
     };
   }
 
   start(timeline, startEvent = 1, countdownSeconds = 0) {
+    if (this.native.enabled()) {
+      this._clearTimers(); this.output.allOff(); this._setAudioClock(false); this.state = "idle";
+      if (!this.native.start(timeline, startEvent)) throw new Error(this.native.message || "Native Piano is already active.");
+      return;
+    }
     this._clearTimers();
     this.output.allOff();
     this.rows = Array.isArray(timeline?.events) ? timeline.events : [];
@@ -46,11 +108,14 @@ export class InternalPreviewPlayer {
     this.total = Number(timeline.total_events || this.rows.length);
     this.durationMs = Number(timeline.duration_ms || 0);
     this.cursor = this._indexForEvent(startEvent);
+    this.audioCursor = this.cursor;
+    this.audioBufferedUntilMs = Number(this.rows[this.cursor]?.at_ms || 0);
+    this.audioGeneration += 1;
     this.currentIndex = this.cursor + 1;
     this.currentToken = "";
     this.resumeIndex = 0;
     const countdownMs = Math.max(0, Number(countdownSeconds || 0) * 1000);
-    if (countdownMs > 0) {
+    if (countdownMs > 0 && !this._isBackgrounded()) {
       this.state = "countdown";
       this.countdownDeadline = performance.now() + countdownMs;
       this._countdownTick();
@@ -60,12 +125,16 @@ export class InternalPreviewPlayer {
   }
 
   togglePause() {
+    if (this.native.active) return this.native.togglePause();
     if (this.state === "paused") {
       this.state = "playing";
       this.message = "Internal preview — built-in piano";
       this.timelineBaseMs = this.pausedTimelineMs;
       this.clockStartedAt = performance.now();
+      this.audioCursor = this.cursor;
+      this.audioGeneration += 1;
       this._scheduleNext();
+      this._setAudioClock(true);
       return false;
     }
     if (this.state !== "playing") return false;
@@ -75,15 +144,20 @@ export class InternalPreviewPlayer {
     this._clearReleaseTimers();
     this.output.allOff();
     this.state = "paused";
+    this._setAudioClock(false);
     this.message = "Internal preview paused";
     return true;
   }
 
   seek(eventIndex) {
+    if (this.native.active) return this.native.seek(eventIndex);
     if (!this.rows.length) return 0;
     const index = this._indexForEvent(eventIndex);
     const row = this.rows[index];
     this.cursor = index;
+    this.audioCursor = index;
+    this.audioBufferedUntilMs = Number(row.at_ms || 0);
+    this.audioGeneration += 1;
     this.currentIndex = index + 1;
     this.currentToken = "";
     this._clearMainTimer();
@@ -103,11 +177,13 @@ export class InternalPreviewPlayer {
   }
 
   stop() {
+    if (this.native.active) return this.native.stop();
     const active = ["countdown", "playing", "paused"].includes(this.state);
     const resume = active ? Math.max(1, this.currentIndex || this.cursor + 1) : 0;
     this._clearTimers();
     this.output.allOff();
     this.state = "idle";
+    this._setAudioClock(false);
     this.currentIndex = 0;
     this.currentToken = "";
     this.resumeIndex = resume;
@@ -116,13 +192,18 @@ export class InternalPreviewPlayer {
   }
 
   reset() {
+    if (this.native.active) this.native.stop();
     this._clearTimers();
     this.output.allOff();
     this.rows = [];
     this.total = 0;
     this.durationMs = 0;
     this.cursor = 0;
+    this.audioCursor = 0;
+    this.audioBufferedUntilMs = 0;
+    this.audioGeneration += 1;
     this.state = "idle";
+    this._setAudioClock(false);
     this.message = "Ready for internal preview";
     this.currentIndex = 0;
     this.currentToken = "";
@@ -130,13 +211,17 @@ export class InternalPreviewPlayer {
   }
 
   _beginPlaying() {
+    this._clearMainTimer();
     const row = this.rows[this.cursor];
     this.state = "playing";
     this.message = "Internal preview — built-in piano";
     this.timelineBaseMs = Number(row?.at_ms || 0);
     this.clockStartedAt = performance.now();
     this.pausedTimelineMs = this.timelineBaseMs;
+    this.audioCursor = this.cursor;
+    this.audioGeneration += 1;
     this._scheduleNext();
+    this._setAudioClock(true);
   }
 
   _countdownTick() {
@@ -149,6 +234,7 @@ export class InternalPreviewPlayer {
 
   _scheduleNext() {
     if (this.state !== "playing") return;
+    this._scheduleAudio(this._lookaheadMs());
     if (this.cursor >= this.rows.length) {
       const remaining = Math.max(0, this.durationMs - this._timelineNow());
       this.timer = window.setTimeout(() => this._finish(), remaining);
@@ -167,9 +253,12 @@ export class InternalPreviewPlayer {
       if (Number(row.at_ms || 0) - timelineNow > 2) break;
       this.currentIndex = Number(row.event_index || this.cursor + 1);
       this.currentToken = String(row.token || row.key || "");
-      if (Array.isArray(row.note_spans) && row.note_spans.length) this._soundSpans(row.note_spans);
-      else if (Array.isArray(row.midi_notes) && row.midi_notes.length) this._soundMidi(row.midi_notes, Number(row.duration_ms || 18));
-      else if (row.key) this._sound(row.key, Number(row.duration_ms || 18));
+      const lateness = timelineNow - Number(row.at_ms || 0);
+      if (lateness <= 100) {
+        if (Array.isArray(row.note_spans) && row.note_spans.length) this._soundSpans(row.note_spans);
+        else if (Array.isArray(row.midi_notes) && row.midi_notes.length) this._soundMidi(row.midi_notes, Number(row.duration_ms || 18));
+        else if (row.key) this._sound(row.key, Number(row.duration_ms || 18));
+      }
       this.cursor += 1;
     }
     this._scheduleNext();
@@ -178,10 +267,10 @@ export class InternalPreviewPlayer {
   _sound(token, durationMs) {
     for (const key of String(token)) {
       const previous = this.releaseTimers.get(key);
-      if (previous) { window.clearTimeout(previous); this.output.up(key); }
-      this.output.down(key);
+      if (previous) { window.clearTimeout(previous); this.output.unhighlightToken(key); }
+      this.output.highlightToken(key);
       const timer = window.setTimeout(() => {
-        this.output.up(key);
+        this.output.unhighlightToken(key);
         if (this.releaseTimers.get(key) === timer) this.releaseTimers.delete(key);
       }, Math.max(2, durationMs));
       this.releaseTimers.set(key, timer);
@@ -210,14 +299,67 @@ export class InternalPreviewPlayer {
     for (const midi of notes) {
       const id = `midi:${midi}`;
       const previous = this.releaseTimers.get(id);
-      if (previous) { window.clearTimeout(previous); this.output.upMidi(midi, id); }
-      this.output.downMidi(midi, id);
+      if (previous) { window.clearTimeout(previous); this.output.unhighlightMidi(midi); }
+      this.output.highlightMidi(midi);
       const timer = window.setTimeout(() => {
-        this.output.upMidi(midi, id);
+        this.output.unhighlightMidi(midi);
         if (this.releaseTimers.get(id) === timer) this.releaseTimers.delete(id);
       }, Math.max(2, durationMs));
       this.releaseTimers.set(id, timer);
     }
+  }
+
+  _isBackgrounded() { return document.hidden; }
+  _lookaheadMs() { return STABLE_AUDIO_LOOKAHEAD_MS; }
+
+  _rescheduleAudio() {
+    if (this.state !== "playing") return;
+    this.output.allOff();
+    this.audioCursor = this.cursor;
+    this.audioGeneration += 1;
+    this._scheduleAudio(this._lookaheadMs());
+  }
+
+  _scheduleAudio(lookaheadMs = STABLE_AUDIO_LOOKAHEAD_MS) {
+    if (this.state !== "playing" || !this.rows.length) return;
+    const timelineNow = this._timelineNow();
+    const horizon = timelineNow + Math.max(STABLE_AUDIO_LOOKAHEAD_MS, Number(lookaheadMs) || 0);
+    const audioNow = this.output.audioTime();
+    while (this.audioCursor < this.rows.length) {
+      const index = this.audioCursor;
+      const row = this.rows[index];
+      const rowAt = Number(row.at_ms || 0);
+      if (rowAt > horizon) break;
+      this.audioCursor += 1;
+      if (rowAt < timelineNow - LATE_AUDIO_SKIP_MS) continue;
+      this._scheduleRowAudio(row, index, audioNow, timelineNow);
+      this.audioBufferedUntilMs = Math.max(this.audioBufferedUntilMs, rowAt);
+    }
+  }
+
+  _scheduleRowAudio(row, index, audioNow, timelineNow) {
+    const baseAt = Number(row.at_ms || 0);
+    const generation = this.audioGeneration;
+    const schedule = (midi, offsetMs, durationMs, suffix) => {
+      const startAt = audioNow + Math.max(0, baseAt + offsetMs - timelineNow) / 1000;
+      const id = `preview:${generation}:${index}:${suffix}`;
+      this.output.scheduleMidi(midi, id, startAt, Math.max(2, durationMs) / 1000);
+    };
+    if (Array.isArray(row.note_spans) && row.note_spans.length) {
+      row.note_spans.forEach((span, noteIndex) => {
+        const midi = Number(span?.midi);
+        if (Number.isFinite(midi)) schedule(midi, Math.max(0, Number(span?.offset_ms || 0)), Number(span?.duration_ms || 18), noteIndex);
+      });
+      return;
+    }
+    if (Array.isArray(row.midi_notes) && row.midi_notes.length) {
+      row.midi_notes.forEach((midi, noteIndex) => schedule(Number(midi), 0, Number(row.duration_ms || 18), noteIndex));
+      return;
+    }
+    [...String(row.key || "")].forEach((token, noteIndex) => {
+      const startAt = audioNow + Math.max(0, baseAt - timelineNow) / 1000;
+      this.output.scheduleToken(token, `preview:${generation}:${index}:token:${noteIndex}`, startAt, Math.max(2, Number(row.duration_ms || 18)) / 1000);
+    });
   }
 
   _timelineNow() {

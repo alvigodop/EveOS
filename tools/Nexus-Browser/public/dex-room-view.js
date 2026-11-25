@@ -3,9 +3,37 @@
   // Structural edits are independently gated by dex-human-control.js.
   const GEMINI_ROOM_AUDIO_EVENT = 'nexus-gemini-link-room-audio';
   const MAX_ROOM_AUDIO_ATTACHMENTS = 48;
+  const receiptApi = globalThis.BrowserAiBridgeDexReceiptPresentation
+    || (typeof module !== 'undefined' && module.exports ? require('./dex-receipt-presentation.js') : null);
+  const trafficApi = globalThis.BrowserAiBridgeDexMiddleAgentTraffic
+    || (typeof module !== 'undefined' && module.exports ? require('./dex-middle-agent-traffic.js') : null);
+
+
+  function engineeringNotice(raw) {
+    const value = String(raw || '');
+    if (!value.startsWith('[ENGINEERING INCIDENT v1]')) return null;
+    const field = (name) => value.match(new RegExp('(?:^|\\s)' + name + '=([^\\s]+)'))?.[1] || '';
+    const state = field('state');
+    const exit = field('exit');
+    const recovery = field('recovery');
+    const success = state === 'completed' && (recovery === 'GREEN' || exit === '0');
+    const uncertain = state === 'outcome-unknown' || state === 'deferred';
+    const job = field('job').slice(-12) || 'unknown';
+    const title = success ? 'Machine Spaces completed successfully'
+      : uncertain ? 'Machine Spaces needs confirmation before retrying'
+        : state === 'failed' ? 'Machine Spaces job failed'
+          : 'Machine Spaces job ' + (state || 'updated');
+    const explanation = success ? 'Recovery passed. No action is required.'
+      : uncertain ? 'The execution result is not proven. Inspect the existing job; do not replay it.'
+        : state === 'failed' ? 'Review the failure receipt before authorizing a correction.'
+          : 'Review the job record for details.';
+    return { tone: success ? 'success' : uncertain ? 'warning' : state === 'failed' ? 'danger' : 'neutral',
+      title, explanation, job, raw: value };
+  }
 
   function createView({ state, el, protocol, onRoomSelect }) {
   const roomAudio = new Map();
+  const middleTraffic = trafficApi?.create?.({ root: globalThis.document }) || { render() {} };
 
   function audioKey(roomId, requestId) {
     return `${String(roomId || '')}:${String(requestId || '')}`;
@@ -89,10 +117,14 @@
     const oldTop = el.dexTranscript.scrollTop;
     const nearBottom = el.dexTranscript.scrollHeight - oldTop - el.dexTranscript.clientHeight < 48;
     el.dexTranscript.replaceChildren();
+    middleTraffic.render(room);
     if (!room) return;
     for (const message of room.messages) {
       const article = document.createElement('article');
       article.className = `dex-message ${message.senderKind}`;
+      const legacy = message.senderKind === 'system' ? engineeringNotice(message.text) : null;
+      const notice = receiptApi?.present(message) || legacy;
+      if (notice) article.classList.add('engineering-' + notice.tone);
       const meta = document.createElement('div');
       meta.className = 'dex-message-meta';
       meta.textContent = message.senderKind === 'user'
@@ -100,9 +132,42 @@
         : message.senderName || 'Dex';
       const body = document.createElement('div');
       body.className = 'dex-message-body';
-      body.textContent = message.senderKind === 'system'
-        ? message.text
-        : protocol.messageWrapper(message);
+      body.textContent = notice ? notice.title + (notice.explanation ? ' · ' + notice.explanation : '')
+        : message.senderKind === 'system' ? message.text : protocol.messageWrapper(message);
+      if (notice) {
+        if (notice.label) {
+          const badge = document.createElement('div'); badge.className = 'dex-notice-label';
+          badge.textContent = notice.label; body.prepend(badge);
+        }
+        if (notice.rows) {
+          const summaryGrid = document.createElement('dl'); summaryGrid.className = 'dex-result-summary';
+          for (const [label, value] of notice.rows) {
+            const term = document.createElement('dt'); term.textContent = label;
+            const detail = document.createElement('dd'); detail.textContent = value;
+            summaryGrid.append(term, detail);
+          }
+          body.append(summaryGrid);
+        }
+        const details = document.createElement('details');
+        details.className = 'engineering-receipt';
+        const summary = document.createElement('summary');
+        summary.textContent = legacy ? 'Technical receipt · job …' + notice.job : 'Technical details · exact IDs and receipt';
+        const pre = document.createElement('pre');
+        const technical = notice.technical;
+        pre.textContent = technical ? `${technical.json}\n\n${technical.raw}` : notice.raw;
+        details.append(summary);
+        if (technical && Object.keys(technical.ids).length) {
+          const copy = document.createElement('button'); copy.type = 'button';
+          copy.className = 'dex-copy-technical'; copy.textContent = 'Copy technical IDs';
+          copy.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(technical.json); copy.textContent = 'Copied'; }
+            catch { copy.textContent = 'Copy unavailable'; }
+          });
+          details.append(copy);
+        }
+        details.append(pre);
+        body.append(details);
+      }
       article.append(meta, body);
       const attachment = message.senderKind === 'agent' ? roomAudioForMessage(room, message) : null;
       if (attachment) attachRoomAudio(article, attachment, message.id);
@@ -128,7 +193,7 @@
   return { renderRooms, renderTranscript, rememberRoomAudio };
   }
 
-  const api = { createView, GEMINI_ROOM_AUDIO_EVENT };
+  const api = { createView, engineeringNotice, GEMINI_ROOM_AUDIO_EVENT };
   globalThis.BrowserAiBridgeDexRoomView = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

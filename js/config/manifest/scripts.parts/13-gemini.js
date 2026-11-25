@@ -4,14 +4,15 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Gemini Integration
-    "js/modules/gemini/search_monitor/tloChat.js?v=b5f4b2f6edf3",
-    "js/modules/gemini/search_monitor/nexusBrowser.js?v=3afeeab97e5b",
-    "js/modules/gemini/search_monitor/nexusServiceChatBridge.js?v=b8c985e4a8fa",
-    "js/modules/gemini/search_monitor/agentNexus.js?v=cf39e3b0fba6",
+    "js/modules/gemini/search_monitor/tloChat.js?v=df4fbe05b965",
+    "js/modules/gemini/search_monitor/nexusBrowser.js?v=1aac9e870556",
+    "js/modules/gemini/search_monitor/nexusServiceChatBridge.js?v=28943fe7908d",
+    "js/modules/gemini/search_monitor/agentNexus.docs.js?v=5f163f3cb0e9",
+    "js/modules/gemini/search_monitor/agentNexus.js?v=de13d993cff5",
     "js/modules/gemini/search_monitor/searchMonitorAiHome.markup.js?v=6ca099e49c12",
     "js/modules/gemini/search_monitor/searchMonitorAiHome.js?v=3319bf4939e8",
     "js/modules/gemini/search_monitor/searchMonitorUpdates.js?v=f3f058b5d78a",
-    "js/modules/gemini/gemini-init.js?v=ce931f88e3d0",
+    "js/modules/gemini/gemini-init.js?v=131d147da9cf",
     "js/modules/gemini/server_control/geminiServerNetwork.js?v=9edb7c790707",
     "js/modules/gemini/server_control/eveosControlPlane.js?v=53a506753d2a",
     "js/modules/gemini/server_control/geminiCredentialBridge.js?v=5a9af87959b0",

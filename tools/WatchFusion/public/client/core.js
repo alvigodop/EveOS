@@ -42,7 +42,7 @@ let remotePollTimer = null;
 let remotePollBusy = false;
 let serverClockOffsetMs = 0;
 let serverClockRttMs = Infinity;
-let serverClockSamples = [];
+let serverClockSamples = [], serverClockReference = null;
 const isTryCloudflare = /(^|\.)trycloudflare\.com$/i.test(location.hostname);
 const eveosShareParams = new URLSearchParams(location.search);
 const eveosShareMode = ['lan', 'cloudflare'].includes(eveosShareParams.get('eveosShareMode')) ? eveosShareParams.get('eveosShareMode') : 'local';
@@ -57,23 +57,22 @@ let suppressAudioPersistence = false;
 let roomAudioGuardUntil = 0;
 let roomAudioCommandTimer = null;
 let roomAudioCandidateKey = '';
-
+let linkedAudioPlayer = null, linkedAudioKey = '';
 const $ = (id) => document.getElementById(id);
-
 function loadPlayerAudioPrefs() {
   try {
     const raw = storage.get(PLAYER_AUDIO_PREFS_KEY);
     if (!raw) return { volume: 100, muted: false };
     const parsed = JSON.parse(raw);
-    const volume = Math.max(0, Math.min(100, Number(parsed?.volume)));
-    return { volume: Number.isFinite(volume) ? volume : 100, muted: !!parsed?.muted };
+    const volume = typeof parsed?.volume === 'number' && Number.isFinite(parsed.volume) ? Math.max(0, Math.min(100, parsed.volume)) : 100;
+    return { volume, muted: !!parsed?.muted };
   } catch { return { volume: 100, muted: false }; }
 }
 function savePlayerAudioPrefs(player = ytPlayer) {
   if (!player || suppressAudioPersistence) return;
   try {
-    const volume = Math.max(0, Math.min(100, Number(player.getVolume?.()) ?? playerAudioPrefs.volume ?? 100));
-    const muted = !!player.isMuted?.();
+    const observed = player.getVolume?.(), muted = player.isMuted?.() ?? playerAudioPrefs.muted;
+    const volume = Number.isFinite(observed) ? Math.max(0, Math.min(100, observed)) : (playerAudioPrefs.volume ?? 100);
     playerAudioPrefs = { volume, muted };
     storage.set(PLAYER_AUDIO_PREFS_KEY, JSON.stringify(playerAudioPrefs));
   } catch {}
@@ -89,8 +88,8 @@ function restorePlayerAudioPrefs(player = ytPlayer) {
 }
 function authoritativeRoomAudio() {
   if (!roomId || !state?.playback) return null;
-  const rawVolume = Number(state.playback.volume);
-  return { volume: Number.isFinite(rawVolume) ? Math.min(100, Math.max(0, rawVolume)) : 100, muted: !!state.playback.muted };
+  const rawVolume = state.playback.volume;
+  return { volume: Number.isFinite(rawVolume) ? Math.min(100, Math.max(0, rawVolume)) : playerAudioPrefs.volume, muted: !!state.playback.muted };
 }
 function clearRoomAudioCandidate() {
   if (roomAudioCommandTimer) clearTimeout(roomAudioCommandTimer);
@@ -102,19 +101,27 @@ function applyRoomAudioState(player = ytPlayer, forceUnmute = false) {
   if (!player || !audio) return false;
   const autoplayGuard = !forceUnmute && !isHost() && autoplayWasBlocked && !userGesturePrimeUsed;
   const targetMuted = audio.muted || autoplayGuard;
+  if (state?.linkedSourceActive && isHost() && window.watchFusionLinkedTab?.active?.()) {
+    if (window.watchFusionLinkedTab.pendingControl?.('volume')) return true;
+    const key = `${roomId}:${state.presentationEpoch}:${state.source?.videoId || state.source?.url}:${audio.volume}:${targetMuted}`;
+    if (linkedAudioPlayer === player && linkedAudioKey === key && Number(player.getVolume?.())>0 && player.isMuted?.()===false) return true;
+    linkedAudioPlayer = player; linkedAudioKey = key;
+  } else { linkedAudioPlayer = null; linkedAudioKey = ''; }
   clearRoomAudioCandidate();
-  roomAudioGuardUntil = performance.now() + 650;
   suppressAudioPersistence = true;
   try {
     const currentVolume = Number(player.getVolume?.());
-    if (!Number.isFinite(currentVolume) || Math.abs(currentVolume - audio.volume) > 0.5) player.setVolume?.(audio.volume);
-    if (!!player.isMuted?.() !== targetMuted) targetMuted ? player.mute?.() : player.unMute?.();
+    const volumeChanged = !Number.isFinite(currentVolume) || Math.abs(currentVolume - audio.volume) > 0.5;
+    const muteChanged = !!player.isMuted?.() !== targetMuted;
+    if (volumeChanged || muteChanged) roomAudioGuardUntil = performance.now() + 650;
+    if (volumeChanged) player.setVolume?.(audio.volume);
+    if (muteChanged) targetMuted ? player.mute?.() : player.unMute?.();
   } catch {}
   setTimeout(() => { suppressAudioPersistence = false; }, 0);
   return true;
 }
 function publishRoomAudioState(volume, muted) {
-  if (!roomId || !session || !isHost() || performance.now() < roomAudioGuardUntil) return;
+  if (!roomId || !session || followsRoomPlayback() || performance.now() < roomAudioGuardUntil) return;
   const nextVolume = Math.min(100, Math.max(0, Number(volume) || 0));
   const nextMuted = !!muted;
   const current = authoritativeRoomAudio();
@@ -128,7 +135,7 @@ function publishRoomAudioState(volume, muted) {
   roomAudioCandidateKey = candidateKey;
   roomAudioCommandTimer = setTimeout(() => {
     roomAudioCommandTimer = null;
-    if (!roomId || !session || !isHost() || !ytPlayer || !ytPlayerReady || performance.now() < roomAudioGuardUntil) {
+    if (!roomId || !session || followsRoomPlayback() || !ytPlayer || !ytPlayerReady || performance.now() < roomAudioGuardUntil) {
       roomAudioCandidateKey = '';
       return;
     }
@@ -154,11 +161,20 @@ function publishRoomAudioState(volume, muted) {
 function observeYouTubeAudio() {
   if (!ytPlayer || !ytPlayerReady || primingPlayer || playerInitializing) return;
   try {
-    const volume = Math.min(100, Math.max(0, Number(ytPlayer.getVolume?.()) || 0));
+    const sampledVolume = ytPlayer.getVolume?.();
+    if (!Number.isFinite(sampledVolume)) return;
+    const volume = Math.min(100, Math.max(0, sampledVolume));
     const muted = !!ytPlayer.isMuted?.();
     const changed = Math.abs((Number(playerAudioPrefs?.volume) || 0) - volume) > 0.5 || !!playerAudioPrefs?.muted !== muted;
     if (roomId) {
-      if (isHost()) { if (changed) savePlayerAudioPrefs(); publishRoomAudioState(volume, muted); }
+      if (isHost()) {
+        if (changed && (!state?.linkedSourceActive || (volume > 0 && !muted))) savePlayerAudioPrefs();
+        const linked = state?.linkedSourceActive && window.watchFusionLinkedTab?.active?.() ? window.watchFusionLinkedTab : null;
+        const expected = authoritativeRoomAudio();
+        if (linked && expected && !applyingRemote && !linked.applying?.() && !linked.pendingControl?.('volume') &&
+            performance.now() >= roomAudioGuardUntil && !expected.muted && !muted && volume > 0 && Math.abs(expected.volume - volume) > 1) linked.control('volume', volume / 100);
+        else if (!linked) publishRoomAudioState(volume, muted);
+      }
     } else if (changed) savePlayerAudioPrefs();
   } catch {}
 }
@@ -168,36 +184,50 @@ function medianNumber(values) {
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
-function updateServerClock(serverTime, sentAt, receivedAt) {
-  const server = Number(serverTime);
-  if (!Number.isFinite(server)) return;
-  const t0 = Number(sentAt), t1 = Number(receivedAt);
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 < t0) return;
-  const rtt = t1 - t0;
-  if (!Number.isFinite(rtt) || rtt > 5000) return;
-  const offset = server - (t0 + rtt / 2);
-  serverClockSamples.push({ rtt, offset, at: t1 });
+function updateServerClock(serverTime, sentAt, receivedAt, receivedByServer) {
+  const precise = receivedByServer != null;
+  const t0 = Number(sentAt), t1 = Number(receivedByServer ?? serverTime);
+  const t2 = Number(serverTime), t3 = Number(receivedAt);
+  if (![t0, t1, t2, t3].every(Number.isFinite) || t1 <= 0 || t2 < t1 || t3 < t0) return;
+  const rtt = (t3 - t0) - (t2 - t1);
+  if (rtt < 0 || t3 - t0 > 5000) return;
+  const localNow = Date.now(), monoNow = performance.now();
+  if (serverClockReference && Math.abs(localNow - serverClockReference.local - (monoNow - serverClockReference.mono)) > 100) {
+    serverClockSamples = [];
+  }
+  if (!precise && serverClockSamples.some(sample => sample.precise && t3 - sample.at < 30000)) return;
+  if (precise && !serverClockSamples.some(sample => sample.precise)) serverClockSamples = [];
+  const offset = ((t1 - t0) + (t2 - t3)) / 2;
+  serverClockSamples = serverClockSamples.filter(sample => t3 - sample.at < 45000 && t3 >= sample.at);
+  serverClockSamples.push({ rtt, offset, at: t3, precise });
   if (serverClockSamples.length > 12) serverClockSamples.shift();
-
-  // Do not freeze forever on the first lucky RTT. Keep a rolling set, take the
-  // lowest-latency samples, then use their median offset so one asymmetric LAN
-  // request cannot bias the viewer timeline for the whole room session.
-  const lowLatency = serverClockSamples
-    .slice()
-    .sort((a, b) => a.rtt - b.rtt)
-    .slice(0, Math.min(5, serverClockSamples.length));
-  serverClockRttMs = lowLatency.length ? lowLatency[0].rtt : rtt;
+  // Prefer low-delay exchanges and reject isolated asymmetric samples.
+  const sorted = [...serverClockSamples].sort((a, b) => a.rtt - b.rtt);
+  serverClockRttMs = sorted[0].rtt;
+  const lowLatency = sorted.filter(sample => sample.rtt <= serverClockRttMs + Math.max(8, serverClockRttMs / 4)).slice(0, 5);
   serverClockOffsetMs = medianNumber(lowLatency.map(sample => sample.offset));
+  serverClockReference = { local: localNow, mono: monoNow, boundMs: Math.max(...lowLatency.map(s => s.rtt)) / 2, spreadMs: Math.max(...lowLatency.map(s => s.offset)) - Math.min(...lowLatency.map(s => s.offset)), newestAt: Math.max(...lowLatency.map(s => s.at)), samples: lowLatency.length, precise: lowLatency.every(s => s.precise) };
 }
-function estimatedServerNow() { return Date.now() + serverClockOffsetMs; }
+function estimatedServerNow() {
+  const reference = serverClockReference;
+  return reference ? reference.local + (performance.now() - reference.mono) + serverClockOffsetMs : Date.now();
+}
 window.watchPartyClock = {
   offsetMs: () => serverClockOffsetMs,
   rttMs: () => Number.isFinite(serverClockRttMs) ? serverClockRttMs : null,
-  sampleCount: () => serverClockSamples.length,
+  precise: () => serverClockSamples.some(sample => sample.precise && Date.now() - sample.at < 15000),
+  witnessReady() {
+    const reference = serverClockReference, now = Date.now();
+    return !!reference?.precise && reference.samples >= 3 && reference.boundMs <= 45 && reference.spreadMs <= 2 * reference.boundMs + 2 &&
+      now >= reference.newestAt && now - reference.newestAt <= 15000 && this.serverAt(now) !== null;
+  },
+  sampleCount: () => serverClockSamples.length, offsetBound: () => Number.isFinite(serverClockReference?.boundMs) ? { boundMs: serverClockReference.boundMs, spreadMs: serverClockReference.spreadMs, ageMs: Date.now() - serverClockReference.newestAt, samples: serverClockReference.samples, precise: serverClockReference.precise } : null,
   now: estimatedServerNow,
+  serverAt: localTime => serverClockReference
+    && Math.abs(Date.now() - serverClockReference.local - (performance.now() - serverClockReference.mono)) <= 100
+    ? Number(localTime) + serverClockOffsetMs : null,
   update: updateServerClock
 };
-
 function playbackAuthorityKey(roomState = state) {
   const source = roomState?.source || {};
   const playback = roomState?.playback || {};
@@ -208,6 +238,7 @@ function playbackAuthorityKey(roomState = state) {
     source.url || '',
     source.streamId || '',
     source.mode || '',
+    roomState?.linkedSourceActive === true, roomState?.playoutSegment,
     Number(playback.updatedAt) || 0,
     playback.paused === true ? 1 : 0,
     playback.ended === true ? 1 : 0,
@@ -265,6 +296,7 @@ function saveRoomSession(value, ...ids) {
   for (const id of new Set(ids.filter(Boolean).map(item=>String(item).toUpperCase()))) saveSession(id, value);
 }
 function isHost() { return !!session && (state?.hostId === session.publicId || state?.hostId === session.memberId); }
+function followsRoomPlayback() { return !isHost() || state?.linkedSourceActive === true; }
 function setStatus(text) { $('syncStatus').textContent = text; }
 let lanBaseUrl = null;
 let lanNetworkInfo = null;
@@ -281,7 +313,6 @@ function updateLanCopyVisibility() {
 }
 function apiUrl(path) { const value=String(path||''); return transportBaseUrl ? `${transportBaseUrl}${value.startsWith('/')?value:`/${value}`}` : value; }
 function eventStreamUrl(path) { return apiUrl(path); }
-
 async function loadNetworkInfo() {
   try {
     const res = await fetch(apiUrl('/api/network-info'), { cache: 'no-store' });
@@ -353,8 +384,7 @@ async function copyText(value) {
   const text=String(value||''); if(!text) return false;
   try { if(navigator.clipboard?.writeText){ await navigator.clipboard.writeText(text); return true; } } catch {}
   try { const area=document.createElement('textarea'); area.value=text; area.setAttribute('readonly',''); area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select(); const copied=document.execCommand('copy'); area.remove(); return copied; } catch { return false; }
-}
-function setCopyButtonFeedback(button, copied, idleLabel='Copy') {
+}function setCopyButtonFeedback(button, copied, idleLabel='Copy') {
   if(!button)return;
   const previousTimer=Number(button.dataset.copyFeedbackTimer||0);
   if(previousTimer)clearTimeout(previousTimer);
@@ -384,7 +414,9 @@ function leaveRoom(message='') {
   replaceRoomHistory();
   app.hidden=false;
   lobby.hidden=true;
-  document.documentElement.classList.remove('watchfusion-room-active');
+  document.documentElement.classList.remove('watchfusion-room-active', 'watchfusion-room-idle');
+  document.querySelector('.watch-shell')?.classList.remove('room-idle');
+  if ($('roomIdleOptions')) { $('roomIdleOptions').hidden = true; $('roomIdleOptions').open = false; }
   if ($('partyPanel')) $('partyPanel').hidden = true;
   if ($('roomSplitter')) $('roomSplitter').hidden = true;
   if ($('partyDetails')) $('partyDetails').hidden = true;
@@ -392,12 +424,17 @@ function leaveRoom(message='') {
   if ($('startPartyBtn')) $('startPartyBtn').hidden = false;
   if ($('openRoomBtn')) $('openRoomBtn').hidden = false;
   if ($('syncBtn')) $('syncBtn').hidden = true;
+  if ($('devicePlaybackTiming')) {
+    $('devicePlaybackTiming').hidden = true;
+    $('devicePlaybackTiming').open = false;
+  }
   if ($('copyBtn')) $('copyBtn').hidden = true;
   if ($('copyLanBtn')) $('copyLanBtn').hidden = true;
   if ($('leaveRoomBtn')) $('leaveRoomBtn').hidden = true;
   if ($('deleteRoomBtn')) $('deleteRoomBtn').hidden = true;
   $('roomPill').textContent = 'Solo';
   $('roomPill').disabled = true;
-  if(message)setStatus(message);
+  window.watchFusionPresentation?.render?.();
+  window.watchFusionPlayout?.render?.(); if(message)setStatus(message);
 }
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
